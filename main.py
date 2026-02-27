@@ -253,6 +253,21 @@ def main():
             logger.log(f"Start Minimized set to {bool(enabled)}")
         return True, "Saved"
 
+    tray_debug_log = os.path.join(base_dir, "tray_debug.log")
+    tray = TrayManager(
+        root,
+        title="Controller Macro Runner",
+        tooltip="Controller Macro Runner",
+        debug_log_path=tray_debug_log
+    )
+
+    def on_exit_app():
+        try:
+            tray.stop()
+        except Exception:
+            pass
+        root.after(0, root.destroy)
+
     app_ui = AppUI(
         root,
         macro_engine,
@@ -262,15 +277,9 @@ def main():
         startup_options=startup_options,
         on_toggle_start_with_windows=on_toggle_start_with_windows,
         on_toggle_start_minimized=on_toggle_start_minimized,
+        on_exit_app=on_exit_app,
     )
 
-    tray_debug_log = os.path.join(base_dir, "tray_debug.log")
-    tray = TrayManager(
-        root,
-        title="Controller Macro Runner",
-        tooltip="Controller Macro Runner",
-        debug_log_path=tray_debug_log
-    )
     tray.bind_close_to_tray()
 
     # Tray is initialized in the background.
