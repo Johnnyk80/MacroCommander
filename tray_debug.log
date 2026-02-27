@@ -152,3 +152,13 @@
 [2026-02-27 21:12:57.661] hide_to_tray() requested
 [2026-02-27 21:12:57.661] start(): tray already running
 [2026-02-27 21:12:57.672] hide_to_tray(): window withdrawn
+[2026-02-27 21:20:19.142] TrayManager initialized
+[2026-02-27 21:20:19.143] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 21:20:19.348] start(): requested (wait_s=4.0)
+[2026-02-27 21:20:19.352] native: thread started
+[2026-02-27 21:20:19.402] native: icon written C:\Users\JCS\Documents\GitHub\MacroCommander\tray_icon.ico
+[2026-02-27 21:20:19.411] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 21:20:19.412] native: ready wait done ok=True
+[2026-02-27 21:20:26.882] hide_to_tray() requested
+[2026-02-27 21:20:26.882] start(): tray already running
+[2026-02-27 21:20:26.900] hide_to_tray(): window withdrawn
