@@ -50,5 +50,6 @@ class ProfileManager:
             "start_with_windows": bool((settings or {}).get("start_with_windows", False)),
             "start_minimized": bool((settings or {}).get("start_minimized", False)),
         }
+
         with open(self.app_settings_path, "w") as f:
             json.dump(payload, f, indent=4)

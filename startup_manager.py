@@ -3,11 +3,7 @@ import sys
 
 
 class StartupManager:
-    """
-    Manage per-user Windows auto-start via HKCU\\...\\Run.
-
-    On non-Windows platforms, methods are safe no-ops.
-    """
+    """Manage per-user Windows auto-start via HKCU\\...\\Run."""
 
     def __init__(self, app_name: str, script_path: str):
         self.app_name = str(app_name).strip() or "ControllerMacroRunner"
@@ -24,12 +20,13 @@ class StartupManager:
     def is_enabled(self) -> bool:
         if not self.supported:
             return False
+
         try:
             import winreg
 
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, winreg.KEY_READ) as key:
                 value, _ = winreg.QueryValueEx(key, self.app_name)
-                return str(value).strip() == self._build_command()
+            return str(value).strip() == self._build_command()
         except Exception:
             return False
 

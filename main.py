@@ -169,6 +169,7 @@ def _start_controller_manager(cm, logger):
                     logger.log(f"ControllerManager: {method_name}() failed: {type(e).__name__}: {e}")
 
 
+
 def _load_startup_options(profile_manager):
     fn = getattr(profile_manager, "load_app_settings", None)
     if callable(fn):
@@ -208,8 +209,7 @@ def main():
     startup_options = _load_startup_options(profile_manager)
     startup_manager = StartupManager(app_name="ControllerMacroRunner", script_path=__file__)
 
-    system_start_enabled = startup_manager.is_enabled()
-    startup_options["start_with_windows"] = bool(system_start_enabled)
+    startup_options["start_with_windows"] = bool(startup_manager.is_enabled())
     _save_startup_options(profile_manager, startup_options)
 
     registry = ActionRegistry()
