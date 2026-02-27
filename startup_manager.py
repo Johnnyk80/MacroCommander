@@ -15,7 +15,7 @@ class StartupManager:
 
     def _build_command(self) -> str:
         """
-        Build the command written to HKCU\...\Run.
+        Build the command written to HKCU\\...\\Run.
 
         - Frozen/packaged app (.exe): run the executable directly.
         - Python source run (.py): run python + script path.
