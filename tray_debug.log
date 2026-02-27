@@ -1,0 +1,137 @@
+[2026-02-24 00:50:00.405] TrayManager initialized
+[2026-02-24 00:50:00.406] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-24 00:50:00.615] start(): initializing tray with wait_s=4.0
+[2026-02-24 00:50:00.615] Building tray icon/menu
+[2026-02-24 00:50:00.615] Tray image created using rounded_rectangle
+[2026-02-24 00:50:00.653] icon.visible set True (pre-run_detached)
+[2026-02-24 00:50:00.654] run_detached invoked
+[2026-02-24 00:50:00.659] Tray backend ready callback received
+[2026-02-24 00:50:00.660] icon.visible set True (on_ready)
+[2026-02-24 00:50:00.660] start() completed with ok=True
+[2026-02-24 00:50:00.660] Startup balloon notification sent
+[2026-02-24 00:50:34.024] hide_to_tray() requested
+[2026-02-24 00:50:34.024] start(): tray already running
+[2026-02-24 00:50:34.036] hide_to_tray(): window withdrawn
+[2026-02-27 17:36:34.916] TrayManager initialized
+[2026-02-27 17:36:34.916] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 17:36:35.117] start(): requested (wait_s=4.0)
+[2026-02-27 17:36:35.177] native: thread started
+[2026-02-27 17:36:35.366] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 17:36:35.378] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 17:36:35.378] native: ready wait done ok=True
+[2026-02-27 17:36:39.952] hide_to_tray() requested
+[2026-02-27 17:36:39.953] start(): tray already running
+[2026-02-27 17:36:39.965] hide_to_tray(): window withdrawn
+[2026-02-27 17:36:42.548] native: click -> show
+[2026-02-27 17:36:42.627] native: click -> show
+[2026-02-27 17:36:42.634] native: click -> show
+[2026-02-27 17:36:45.422] hide_to_tray() requested
+[2026-02-27 17:36:45.423] start(): tray already running
+[2026-02-27 17:36:45.445] hide_to_tray(): window withdrawn
+[2026-02-27 17:36:47.561] native: click -> show
+[2026-02-27 17:41:16.489] hide_to_tray() requested
+[2026-02-27 17:41:16.490] start(): tray already running
+[2026-02-27 17:41:16.503] hide_to_tray(): window withdrawn
+[2026-02-27 17:41:18.257] native: right click -> menu
+[2026-02-27 17:41:19.024] native: menu exit
+[2026-02-27 17:41:19.028] native: WM_DESTROY
+[2026-02-27 17:44:18.894] TrayManager initialized
+[2026-02-27 17:44:18.894] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 17:44:19.105] start(): requested (wait_s=4.0)
+[2026-02-27 17:44:19.109] native: thread started
+[2026-02-27 17:44:19.158] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 17:44:19.166] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 17:44:19.166] native: ready wait done ok=True
+[2026-02-27 17:49:41.598] hide_to_tray() requested
+[2026-02-27 17:49:41.598] start(): tray already running
+[2026-02-27 17:49:41.608] hide_to_tray(): window withdrawn
+[2026-02-27 17:50:13.259] TrayManager initialized
+[2026-02-27 17:50:13.259] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 17:50:13.473] start(): requested (wait_s=4.0)
+[2026-02-27 17:50:13.477] native: thread started
+[2026-02-27 17:50:13.526] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 17:50:13.534] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 17:50:13.534] native: ready wait done ok=True
+[2026-02-27 17:51:50.946] native: click -> show
+[2026-02-27 17:51:51.259] native: click -> show
+[2026-02-27 17:51:51.266] native: click -> show
+[2026-02-27 17:51:51.446] native: click -> show
+[2026-02-27 17:51:51.695] native: right click -> menu
+[2026-02-27 17:51:52.795] native: menu show
+[2026-02-27 17:54:07.005] hide_to_tray() requested
+[2026-02-27 17:54:07.005] start(): tray already running
+[2026-02-27 17:54:07.018] hide_to_tray(): window withdrawn
+[2026-02-27 17:54:21.448] TrayManager initialized
+[2026-02-27 17:54:21.448] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 17:54:21.658] start(): requested (wait_s=4.0)
+[2026-02-27 17:54:21.662] native: thread started
+[2026-02-27 17:54:21.710] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 17:54:21.718] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 17:54:21.718] native: ready wait done ok=True
+[2026-02-27 17:57:26.351] hide_to_tray() requested
+[2026-02-27 17:57:26.351] start(): tray already running
+[2026-02-27 17:57:26.362] hide_to_tray(): window withdrawn
+[2026-02-27 17:57:33.973] TrayManager initialized
+[2026-02-27 17:57:33.973] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 17:57:34.181] start(): requested (wait_s=4.0)
+[2026-02-27 17:57:34.186] native: thread started
+[2026-02-27 17:57:34.233] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 17:57:34.242] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 17:57:34.242] native: ready wait done ok=True
+[2026-02-27 17:58:10.252] hide_to_tray() requested
+[2026-02-27 17:58:10.253] start(): tray already running
+[2026-02-27 17:58:10.264] hide_to_tray(): window withdrawn
+[2026-02-27 18:00:59.236] TrayManager initialized
+[2026-02-27 18:00:59.236] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 18:00:59.442] start(): requested (wait_s=4.0)
+[2026-02-27 18:00:59.446] native: thread started
+[2026-02-27 18:00:59.493] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 18:00:59.501] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 18:00:59.502] native: ready wait done ok=True
+[2026-02-27 18:03:50.434] hide_to_tray() requested
+[2026-02-27 18:03:50.434] start(): tray already running
+[2026-02-27 18:03:50.447] hide_to_tray(): window withdrawn
+[2026-02-27 18:03:52.474] native: right click -> menu
+[2026-02-27 18:03:53.361] native: menu exit
+[2026-02-27 18:03:53.367] native: WM_DESTROY
+[2026-02-27 18:04:03.468] TrayManager initialized
+[2026-02-27 18:04:03.468] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 18:04:03.682] start(): requested (wait_s=4.0)
+[2026-02-27 18:04:03.686] native: thread started
+[2026-02-27 18:04:03.733] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 18:04:03.741] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 18:04:03.741] native: ready wait done ok=True
+[2026-02-27 18:05:51.216] hide_to_tray() requested
+[2026-02-27 18:05:51.216] start(): tray already running
+[2026-02-27 18:05:51.230] hide_to_tray(): window withdrawn
+[2026-02-27 18:06:02.763] TrayManager initialized
+[2026-02-27 18:06:02.763] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 18:06:02.970] start(): requested (wait_s=4.0)
+[2026-02-27 18:06:02.974] native: thread started
+[2026-02-27 18:06:03.022] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 18:06:03.031] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 18:06:03.031] native: ready wait done ok=True
+[2026-02-27 18:06:08.952] hide_to_tray() requested
+[2026-02-27 18:06:08.952] start(): tray already running
+[2026-02-27 18:06:08.964] hide_to_tray(): window withdrawn
+[2026-02-27 18:06:24.635] TrayManager initialized
+[2026-02-27 18:06:24.635] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 18:06:24.849] start(): requested (wait_s=4.0)
+[2026-02-27 18:06:24.853] native: thread started
+[2026-02-27 18:06:24.900] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 18:06:24.908] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 18:06:24.909] native: ready wait done ok=True
+[2026-02-27 18:07:44.411] hide_to_tray() requested
+[2026-02-27 18:07:44.411] start(): tray already running
+[2026-02-27 18:07:44.423] hide_to_tray(): window withdrawn
+[2026-02-27 18:07:46.306] native: click -> show
+[2026-02-27 18:07:47.526] hide_to_tray() requested
+[2026-02-27 18:07:47.526] start(): tray already running
+[2026-02-27 18:07:47.533] hide_to_tray(): window withdrawn
+[2026-02-27 18:09:03.319] TrayManager initialized
+[2026-02-27 18:09:03.319] Binding WM_DELETE_WINDOW to hide_to_tray
+[2026-02-27 18:09:03.521] start(): requested (wait_s=4.0)
+[2026-02-27 18:09:03.525] native: thread started
+[2026-02-27 18:09:03.572] native: icon written C:\Users\JCS\Documents\GitHub\ControllerCommander\tray_icon.ico
+[2026-02-27 18:09:03.582] native: Shell_NotifyIcon NIM_ADD done
+[2026-02-27 18:09:03.582] native: ready wait done ok=True
