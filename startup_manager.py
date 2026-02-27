@@ -5,17 +5,27 @@ import sys
 class StartupManager:
     """Manage per-user Windows auto-start via HKCU\\...\\Run."""
 
-    def __init__(self, app_name: str, script_path: str):
+    def __init__(self, app_name: str, script_path: str | None = None):
         self.app_name = str(app_name).strip() or "ControllerMacroRunner"
-        self.script_path = os.path.abspath(script_path)
+        self.script_path = os.path.abspath(script_path) if script_path else None
 
     @property
     def supported(self) -> bool:
         return os.name == "nt"
 
     def _build_command(self) -> str:
+        """
+        Build the command written to HKCU\\...\\Run.
+
+        - Frozen/packaged app (.exe): run the executable directly.
+        - Python source run (.py): run python + script path.
+        """
+        if getattr(sys, "frozen", False):
+            return f'"{os.path.abspath(sys.executable)}"'
+
         python_exe = os.path.abspath(sys.executable)
-        return f'"{python_exe}" "{self.script_path}"'
+        script_path = self.script_path or os.path.abspath(sys.argv[0])
+        return f'"{python_exe}" "{script_path}"'
 
     def is_enabled(self) -> bool:
         if not self.supported:
