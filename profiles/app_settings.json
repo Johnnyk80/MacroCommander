@@ -1,4 +1,4 @@
 {
-    "start_with_windows": true,
-    "start_minimized": true
+    "start_with_windows": false,
+    "start_minimized": false
 }
