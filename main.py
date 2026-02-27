@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 
 from action_registry import ActionRegistry
@@ -42,7 +43,7 @@ def register_builtin_actions(registry: ActionRegistry):
         if not path:
             return False, "Missing PY path"
         try:
-            subprocess.Popen(["python", path], shell=False)
+            subprocess.Popen([sys.executable, path], shell=False)
             return True, f"Ran PY: {path}"
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
