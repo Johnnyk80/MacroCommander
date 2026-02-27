@@ -56,6 +56,11 @@ class MacroEngine:
 
         cleaned = []
         for s in steps:
+            if not isinstance(s, dict):
+                if self.logger:
+                    self.logger.log(f"Skipping invalid step entry of type {type(s).__name__}")
+                continue
+
             kind = str(s.get("kind", "run")).lower().strip()
 
             if kind == "wait":

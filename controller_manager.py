@@ -220,6 +220,10 @@ class ControllerManager:
                     self.latest[cid] = None
                     self.pressed[cid] = tuple()
 
+                    if self.macro_engine is not None:
+                        # Reset runtime combo/hold tracking for disconnected controllers.
+                        self.macro_engine.check_combo(cid, tuple())
+
                     if self.listen_armed and self._listen_controller == cid:
                         self.cancel_listen()
                     continue
