@@ -207,6 +207,13 @@ def main():
     macros = _load_macros(profile_manager, logger)
 
     startup_options = _load_startup_options(profile_manager)
+    should_start_minimized = bool(startup_options.get("start_minimized", False))
+
+    # Avoid the startup flash when "Start Minimized" is enabled.
+    # Withdrawing before UI/tray initialization prevents the first map-to-screen.
+    if should_start_minimized:
+        root.withdraw()
+
     startup_manager = StartupManager(app_name="ControllerMacroRunner", script_path=__file__)
 
     startup_options["start_with_windows"] = bool(startup_manager.is_enabled())
@@ -246,17 +253,6 @@ def main():
             logger.log(f"Start Minimized set to {bool(enabled)}")
         return True, "Saved"
 
-    app_ui = AppUI(
-        root,
-        macro_engine,
-        controller_manager,
-        registry=registry,
-        logger=logger,
-        startup_options=startup_options,
-        on_toggle_start_with_windows=on_toggle_start_with_windows,
-        on_toggle_start_minimized=on_toggle_start_minimized,
-    )
-
     tray_debug_log = os.path.join(base_dir, "tray_debug.log")
     tray = TrayManager(
         root,
@@ -266,9 +262,29 @@ def main():
     )
     tray.bind_close_to_tray()
 
-    # ✅ START VISIBLE:
-    # App starts on screen. Tray is initialized in the background.
-    # Closing the window (X) will still hide to tray via WM_DELETE binding.
+    def on_exit_application():
+        try:
+            tray.stop()
+        except Exception:
+            pass
+        try:
+            root.destroy()
+        except Exception:
+            pass
+
+    app_ui = AppUI(
+        root,
+        macro_engine,
+        controller_manager,
+        registry=registry,
+        logger=logger,
+        startup_options=startup_options,
+        on_toggle_start_with_windows=on_toggle_start_with_windows,
+        on_toggle_start_minimized=on_toggle_start_minimized,
+        on_exit_application=on_exit_application,
+    )
+
+    # Tray is initialized in the background.
     def initialize_tray():
         try:
             ok = tray.start(wait_s=4.0)
@@ -278,9 +294,12 @@ def main():
         if not ok:
             logger.log(f"Tray failed to start. See debug log: {tray_debug_log}")
 
-        should_start_minimized = bool(startup_options.get("start_minimized", False))
-        if should_start_minimized and ok:
-            tray.hide_to_tray()
+        if should_start_minimized:
+            if not ok:
+                # If tray startup fails, show the app so it doesn't appear to vanish.
+                root.deiconify()
+                root.lift()
+                root.focus_force()
         else:
             root.deiconify()
             root.lift()

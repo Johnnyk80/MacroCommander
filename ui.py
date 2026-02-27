@@ -871,7 +871,7 @@ class MacroPanel(ttk.LabelFrame):
 
 
 class AppUI:
-    def __init__(self, root, macro_engine, controller_manager, registry, logger=None, startup_options=None, on_toggle_start_with_windows=None, on_toggle_start_minimized=None):
+    def __init__(self, root, macro_engine, controller_manager, registry, logger=None, startup_options=None, on_toggle_start_with_windows=None, on_toggle_start_minimized=None, on_exit_application=None):
         self.root = root
         self.engine = macro_engine
         self.cm = controller_manager
@@ -881,6 +881,7 @@ class AppUI:
         startup_options = startup_options or {}
         self._on_toggle_start_with_windows = on_toggle_start_with_windows
         self._on_toggle_start_minimized = on_toggle_start_minimized
+        self._on_exit_application = on_exit_application
         self._start_with_windows_var = tk.BooleanVar(value=bool(startup_options.get("start_with_windows", False)))
         self._start_minimized_var = tk.BooleanVar(value=bool(startup_options.get("start_minimized", False)))
 
@@ -900,6 +901,8 @@ class AppUI:
             variable=self._start_minimized_var,
             command=self._toggle_start_minimized
         )
+        options_menu.add_separator()
+        options_menu.add_command(label="Exit", command=self._exit_application)
         menubar.add_cascade(label="Options", menu=options_menu)
 
         debug_menu = tk.Menu(menubar, tearoff=0)
@@ -941,6 +944,16 @@ class AppUI:
         if not ok:
             self._start_minimized_var.set(not enabled)
             messagebox.showerror("Start Minimized", msg)
+
+
+    def _exit_application(self):
+        if callable(self._on_exit_application):
+            self._on_exit_application()
+            return
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
 
     def show_activity_log(self):
         if self._log_win and self._log_win.win.winfo_exists():
