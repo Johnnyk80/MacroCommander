@@ -129,7 +129,7 @@ class ControllerMonitor(ttk.LabelFrame):
     def __init__(self, parent, controller_manager):
         super().__init__(parent, text="Controller Monitor")
         self.cm = controller_manager
-        self.selected_controller = tk.IntVar(value=0)
+        self.selected_controller = tk.StringVar(value="xinput:0")
 
         self.inner = ttk.Frame(self)
         self.inner.pack(fill="both", expand=True, padx=8, pady=8)
@@ -142,8 +142,8 @@ class ControllerMonitor(ttk.LabelFrame):
         top.pack(fill="x", padx=8, pady=6)
 
         ttk.Label(top, text="View Controller:").pack(side="left")
-        self.controller_combo = ttk.Combobox(top, values=[0, 1, 2, 3], width=5, state="readonly")
-        self.controller_combo.current(0)
+        self.controller_combo = ttk.Combobox(top, values=[], width=28, state="readonly")
+        self._sync_controller_list(initial=True)
         self.controller_combo.pack(side="left", padx=6)
         self.controller_combo.bind("<<ComboboxSelected>>", self._on_select)
 
@@ -203,10 +203,22 @@ class ControllerMonitor(ttk.LabelFrame):
         self.right_dot = self.right_canvas.create_oval(78, 78, 88, 88, fill="green")
 
     def _on_select(self, _evt=None):
-        try:
-            self.selected_controller.set(int(self.controller_combo.get()))
-        except Exception:
-            self.selected_controller.set(0)
+        self.selected_controller.set(self.controller_combo.get())
+
+    def _sync_controller_list(self, initial=False):
+        ids = self.cm.get_known_ids()
+        current_values = list(self.controller_combo.cget("values"))
+
+        if ids != current_values:
+            self.controller_combo["values"] = ids
+
+        selected = self.selected_controller.get()
+        if selected not in ids and ids:
+            selected = ids[0]
+            self.selected_controller.set(selected)
+
+        if ids and (initial or self.controller_combo.get() != selected):
+            self.controller_combo.set(selected)
 
     def _set_bar(self, canvas, bar, value_0_255):
         try:
@@ -225,11 +237,14 @@ class ControllerMonitor(ttk.LabelFrame):
         canvas.coords(dot, dx - 5, dy - 5, dx + 5, dy + 5)
 
     def update_view(self):
+        self._sync_controller_list()
         cid = self.selected_controller.get()
         connected = cid in self.cm.get_connected_ids()
 
+        display = self.cm.get_display_name(cid)
+
         if not connected:
-            self.status_label.config(text=f"Status: Controller {cid} not connected")
+            self.status_label.config(text=f"Status: {display} not connected")
             for lbl in self.button_labels.values():
                 lbl.config(bg="gray")
             self._set_bar(self.lt_canvas, self.lt_bar, 0)
@@ -241,7 +256,7 @@ class ControllerMonitor(ttk.LabelFrame):
         gp = self.cm.get_gamepad(cid)
         pressed = set(self.cm.get_pressed_combo(cid))
 
-        self.status_label.config(text=f"Status: Controller {cid} connected")
+        self.status_label.config(text=f"Status: {display} connected")
 
         for name, lbl in self.button_labels.items():
             lbl.config(bg="green" if name in pressed else "gray")
