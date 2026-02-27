@@ -871,18 +871,37 @@ class MacroPanel(ttk.LabelFrame):
 
 
 class AppUI:
-    def __init__(self, root, macro_engine, controller_manager, registry, logger=None):
+    def __init__(self, root, macro_engine, controller_manager, registry, logger=None, startup_options=None, on_toggle_start_with_windows=None, on_toggle_start_minimized=None):
         self.root = root
         self.engine = macro_engine
         self.cm = controller_manager
         self.registry = registry
         self.logger = logger
         self._log_win = None
+        startup_options = startup_options or {}
+        self._on_toggle_start_with_windows = on_toggle_start_with_windows
+        self._on_toggle_start_minimized = on_toggle_start_minimized
+        self._start_with_windows_var = tk.BooleanVar(value=bool(startup_options.get("start_with_windows", False)))
+        self._start_minimized_var = tk.BooleanVar(value=bool(startup_options.get("start_minimized", False)))
 
         self.root.title("Controller Macro Runner")
         self.root.geometry("950x700")
 
         menubar = tk.Menu(self.root)
+
+        options_menu = tk.Menu(menubar, tearoff=0)
+        options_menu.add_checkbutton(
+            label="Start with Windows",
+            variable=self._start_with_windows_var,
+            command=self._toggle_start_with_windows
+        )
+        options_menu.add_checkbutton(
+            label="Start Minimized",
+            variable=self._start_minimized_var,
+            command=self._toggle_start_minimized
+        )
+        menubar.add_cascade(label="Options", menu=options_menu)
+
         debug_menu = tk.Menu(menubar, tearoff=0)
         debug_menu.add_command(label="Activity Log", command=self.show_activity_log)
         menubar.add_cascade(label="Debug", menu=debug_menu)
@@ -902,6 +921,26 @@ class AppUI:
         self.macros.pack(fill="both", expand=True, padx=10, pady=10)
 
         self._tick()
+
+    def _toggle_start_with_windows(self):
+        enabled = bool(self._start_with_windows_var.get())
+        if not callable(self._on_toggle_start_with_windows):
+            return
+
+        ok, msg = self._on_toggle_start_with_windows(enabled)
+        if not ok:
+            self._start_with_windows_var.set(not enabled)
+            messagebox.showerror("Start with Windows", msg)
+
+    def _toggle_start_minimized(self):
+        enabled = bool(self._start_minimized_var.get())
+        if not callable(self._on_toggle_start_minimized):
+            return
+
+        ok, msg = self._on_toggle_start_minimized(enabled)
+        if not ok:
+            self._start_minimized_var.set(not enabled)
+            messagebox.showerror("Start Minimized", msg)
 
     def show_activity_log(self):
         if self._log_win and self._log_win.win.winfo_exists():

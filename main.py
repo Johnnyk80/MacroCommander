@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 
 from action_registry import ActionRegistry
@@ -11,6 +12,7 @@ from controller_manager import ControllerManager
 from logger import AppLogger
 
 from tray import TrayManager
+from startup_manager import StartupManager
 
 
 def register_builtin_actions(registry: ActionRegistry):
@@ -42,7 +44,7 @@ def register_builtin_actions(registry: ActionRegistry):
         if not path:
             return False, "Missing PY path"
         try:
-            subprocess.Popen(["python", path], shell=False)
+            subprocess.Popen([sys.executable, path], shell=False)
             return True, f"Ran PY: {path}"
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
@@ -167,6 +169,32 @@ def _start_controller_manager(cm, logger):
                     logger.log(f"ControllerManager: {method_name}() failed: {type(e).__name__}: {e}")
 
 
+def _load_startup_options(profile_manager):
+    fn = getattr(profile_manager, "load_app_settings", None)
+    if callable(fn):
+        try:
+            data = fn()
+            if isinstance(data, dict):
+                return {
+                    "start_with_windows": bool(data.get("start_with_windows", False)),
+                    "start_minimized": bool(data.get("start_minimized", False)),
+                }
+        except Exception:
+            pass
+    return {"start_with_windows": False, "start_minimized": False}
+
+
+def _save_startup_options(profile_manager, options):
+    fn = getattr(profile_manager, "save_app_settings", None)
+    if callable(fn):
+        try:
+            fn(options)
+            return True
+        except Exception:
+            return False
+    return False
+
+
 def main():
     root = tk.Tk()
     logger = AppLogger()
@@ -176,6 +204,13 @@ def main():
     profile_dir = _ensure_dir(os.path.join(base_dir, "profiles"))
     profile_manager = ProfileManager(profile_dir)
     macros = _load_macros(profile_manager, logger)
+
+    startup_options = _load_startup_options(profile_manager)
+    startup_manager = StartupManager(app_name="ControllerMacroRunner", script_path=__file__)
+
+    system_start_enabled = startup_manager.is_enabled()
+    startup_options["start_with_windows"] = bool(system_start_enabled)
+    _save_startup_options(profile_manager, startup_options)
 
     registry = ActionRegistry()
     register_builtin_actions(registry)
@@ -193,12 +228,33 @@ def main():
     controller_manager = ControllerManager(macro_engine)
     _start_controller_manager(controller_manager, logger)
 
+    def on_toggle_start_with_windows(enabled):
+        ok, msg = startup_manager.set_enabled(bool(enabled))
+        if ok:
+            startup_options["start_with_windows"] = bool(enabled)
+            _save_startup_options(profile_manager, startup_options)
+            if logger:
+                logger.log(msg)
+        return ok, msg
+
+    def on_toggle_start_minimized(enabled):
+        startup_options["start_minimized"] = bool(enabled)
+        ok = _save_startup_options(profile_manager, startup_options)
+        if not ok:
+            return False, "Failed to save startup setting."
+        if logger:
+            logger.log(f"Start Minimized set to {bool(enabled)}")
+        return True, "Saved"
+
     app_ui = AppUI(
         root,
         macro_engine,
         controller_manager,
         registry=registry,
-        logger=logger
+        logger=logger,
+        startup_options=startup_options,
+        on_toggle_start_with_windows=on_toggle_start_with_windows,
+        on_toggle_start_minimized=on_toggle_start_minimized,
     )
 
     tray_debug_log = os.path.join(base_dir, "tray_debug.log")
@@ -222,10 +278,13 @@ def main():
         if not ok:
             logger.log(f"Tray failed to start. See debug log: {tray_debug_log}")
 
-        # Keep the main window visible on startup regardless.
-        root.deiconify()
-        root.lift()
-        root.focus_force()
+        should_start_minimized = bool(startup_options.get("start_minimized", False))
+        if should_start_minimized and ok:
+            tray.hide_to_tray()
+        else:
+            root.deiconify()
+            root.lift()
+            root.focus_force()
 
     root.after(200, initialize_tray)
 
