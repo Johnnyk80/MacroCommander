@@ -125,6 +125,16 @@ Clear separation of UI and logic
 
 Stable long-running behavior
 
+🕹 Controller Backends
+
+Controller Commander now supports both major Windows controller paths:
+
+- **XInput** (`xinput*.dll`) for Xbox-compatible controllers
+- **DirectInput / RawInput-style** devices via **pygame joystick polling** and **inputs** gamepad events (commonly includes many Bluetooth controllers)
+- Optional HID enumeration support through `hid` for diagnostics
+
+This means many controllers that do not appear through XInput can still be detected and used for macro triggers.
+
 🖥 Platform
 
 Windows
@@ -132,4 +142,3 @@ Windows
 Python (Tkinter UI)
 
 HID / controller input libraries
-
