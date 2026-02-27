@@ -142,7 +142,8 @@ class ControllerMonitor(ttk.LabelFrame):
         top.pack(fill="x", padx=8, pady=6)
 
         ttk.Label(top, text="View Controller:").pack(side="left")
-        self.controller_combo = ttk.Combobox(top, values=[], width=28, state="readonly")
+        self.controller_combo = ttk.Combobox(top, values=[], width=44, state="readonly")
+        self._id_by_label = {}
         self._sync_controller_list(initial=True)
         self.controller_combo.pack(side="left", padx=6)
         self.controller_combo.bind("<<ComboboxSelected>>", self._on_select)
@@ -203,22 +204,37 @@ class ControllerMonitor(ttk.LabelFrame):
         self.right_dot = self.right_canvas.create_oval(78, 78, 88, 88, fill="green")
 
     def _on_select(self, _evt=None):
-        self.selected_controller.set(self.controller_combo.get())
+        label = self.controller_combo.get()
+        cid = self._id_by_label.get(label, label)
+        self.selected_controller.set(cid)
 
     def _sync_controller_list(self, initial=False):
         ids = self.cm.get_known_ids()
+        labels = []
+        self._id_by_label = {}
+
+        for cid in ids:
+            label = f"{self.cm.get_display_name(cid)} [{cid}]"
+            labels.append(label)
+            self._id_by_label[label] = cid
+
         current_values = list(self.controller_combo.cget("values"))
+        if labels != current_values:
+            self.controller_combo["values"] = labels
 
-        if ids != current_values:
-            self.controller_combo["values"] = ids
+        selected_id = self.selected_controller.get()
+        if selected_id not in ids and ids:
+            selected_id = ids[0]
+            self.selected_controller.set(selected_id)
 
-        selected = self.selected_controller.get()
-        if selected not in ids and ids:
-            selected = ids[0]
-            self.selected_controller.set(selected)
+        selected_label = None
+        for label, cid in self._id_by_label.items():
+            if cid == selected_id:
+                selected_label = label
+                break
 
-        if ids and (initial or self.controller_combo.get() != selected):
-            self.controller_combo.set(selected)
+        if selected_label and (initial or self.controller_combo.get() != selected_label):
+            self.controller_combo.set(selected_label)
 
     def _set_bar(self, canvas, bar, value_0_255):
         try:
