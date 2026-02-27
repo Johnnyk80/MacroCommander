@@ -3,7 +3,7 @@ import sys
 
 
 class StartupManager:
-    """Manage per-user Windows auto-start via HKCU\\...\\Run."""
+    """Manage per-user Windows auto-start via HKCU\...\Run."""
 
     def __init__(self, app_name: str, script_path: str | None = None):
         self.app_name = str(app_name).strip() or "ControllerMacroRunner"
