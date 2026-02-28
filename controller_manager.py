@@ -3,6 +3,11 @@ import time
 import threading
 from ctypes import wintypes
 
+try:
+    import pygame
+except Exception:
+    pygame = None
+
 
 def _load_xinput():
     for dll_name in ("xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"):
@@ -68,15 +73,40 @@ BUTTON_MAP = {
     0x0008: "DPad Right",
 }
 
+PYGAME_BUTTON_MAP = {
+    0: "A",
+    1: "B",
+    2: "X",
+    3: "Y",
+    4: "LB",
+    5: "RB",
+    6: "Back",
+    7: "Start",
+    8: "LS",
+    9: "RS",
+}
+
+
+class GenericGamepadState:
+    def __init__(self):
+        self.dwPacketNumber = int(time.time() * 1000) & 0xFFFFFFFF
+        self.wButtons = 0
+        self.bLeftTrigger = 0
+        self.bRightTrigger = 0
+        self.sThumbLX = 0
+        self.sThumbLY = 0
+        self.sThumbRX = 0
+        self.sThumbRY = 0
+
 
 class ControllerManager:
     """
-    Polls up to 4 XInput controllers (XInput limitation).
+    Polls up to 4 controllers across XInput and optional pygame devices.
     Stores latest states for UI, and sends combos to macro engine.
     Supports Listen Mode: press buttons (any order) + release -> captures FULL union combo
     from FIRST controller that presses.
 
-    Also provides vibration feedback via XInputSetState.
+    Also provides vibration feedback via XInputSetState for XInput-backed slots.
     """
 
     def __init__(self, macro_engine, max_controllers=4, poll_hz=100):
@@ -87,6 +117,16 @@ class ControllerManager:
         self.connected = {i: False for i in range(self.max_controllers)}
         self.latest = {i: None for i in range(self.max_controllers)}
         self.pressed = {i: tuple() for i in range(self.max_controllers)}
+        self.slot_backend = {i: None for i in range(self.max_controllers)}
+
+        self._source_slots = {}
+        self._slot_sources = {i: None for i in range(self.max_controllers)}
+        self._source_order = {}
+        self._order_counter = 0
+        self._slot_xinput = {i: None for i in range(self.max_controllers)}
+
+        self._pygame_ready = False
+        self._pygame_failed = False
 
         # Listen mode state
         self.listen_armed = False
@@ -162,6 +202,152 @@ class ControllerManager:
         out.sort()
         return tuple(out)
 
+    def _ensure_pygame(self):
+        if self._pygame_ready or self._pygame_failed or pygame is None:
+            return
+        try:
+            pygame.init()
+            pygame.joystick.init()
+            self._pygame_ready = True
+        except Exception:
+            self._pygame_failed = True
+
+    def _axis_to_short(self, value):
+        v = max(-1.0, min(1.0, float(value)))
+        n = int(v * 32767)
+        if n < -32768:
+            n = -32768
+        if n > 32767:
+            n = 32767
+        return n
+
+    def _axis_to_trigger(self, value):
+        v = float(value)
+        # Some APIs provide [-1..1], others [0..1]
+        if v < 0.0:
+            v = (v + 1.0) / 2.0
+        v = max(0.0, min(1.0, v))
+        return int(v * 255)
+
+    def _get_pygame_sources(self):
+        out = {}
+        self._ensure_pygame()
+        if not self._pygame_ready:
+            return out
+
+        try:
+            pygame.event.pump()
+            count = pygame.joystick.get_count()
+        except Exception:
+            return out
+
+        for idx in range(count):
+            try:
+                js = pygame.joystick.Joystick(idx)
+                if not js.get_init():
+                    js.init()
+
+                inst_id = js.get_instance_id() if hasattr(js, "get_instance_id") else idx
+                key = ("pygame", int(inst_id))
+                state = GenericGamepadState()
+
+                num_axes = js.get_numaxes()
+                lx = js.get_axis(0) if num_axes > 0 else 0.0
+                ly = js.get_axis(1) if num_axes > 1 else 0.0
+                rx = js.get_axis(2) if num_axes > 2 else 0.0
+                ry = js.get_axis(3) if num_axes > 3 else 0.0
+                lt = js.get_axis(4) if num_axes > 4 else 0.0
+                rt = js.get_axis(5) if num_axes > 5 else 0.0
+
+                state.sThumbLX = self._axis_to_short(lx)
+                state.sThumbLY = self._axis_to_short(-ly)
+                state.sThumbRX = self._axis_to_short(rx)
+                state.sThumbRY = self._axis_to_short(-ry)
+                state.bLeftTrigger = self._axis_to_trigger(lt)
+                state.bRightTrigger = self._axis_to_trigger(rt)
+
+                pressed = set()
+                for b_idx, b_name in PYGAME_BUTTON_MAP.items():
+                    if b_idx < js.get_numbuttons() and js.get_button(b_idx):
+                        pressed.add(b_name)
+
+                for h_idx in range(js.get_numhats()):
+                    hx, hy = js.get_hat(h_idx)
+                    if hy > 0:
+                        pressed.add("DPad Up")
+                    elif hy < 0:
+                        pressed.add("DPad Down")
+                    if hx < 0:
+                        pressed.add("DPad Left")
+                    elif hx > 0:
+                        pressed.add("DPad Right")
+
+                out[key] = (state, tuple(sorted(pressed)), None, "pygame")
+            except Exception:
+                continue
+
+        return out
+
+    def _get_all_sources(self):
+        sources = {}
+
+        for xcid in range(self.max_controllers):
+            gp = self._get_state(xcid)
+            if gp is None:
+                continue
+            key = ("xinput", xcid)
+            sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput")
+
+        sources.update(self._get_pygame_sources())
+        return sources
+
+    def _sync_slots(self, sources):
+        active_keys = set(sources.keys())
+
+        for key in list(self._source_slots.keys()):
+            if key in active_keys:
+                continue
+            slot = self._source_slots.pop(key)
+            self._slot_sources[slot] = None
+            self.connected[slot] = False
+            self.latest[slot] = None
+            self.pressed[slot] = tuple()
+            self.slot_backend[slot] = None
+            self._slot_xinput[slot] = None
+            if self.macro_engine is not None:
+                self.macro_engine.check_combo(slot, tuple())
+            if self.listen_armed and self._listen_controller == slot:
+                self.cancel_listen()
+
+        for key in active_keys:
+            if key not in self._source_order:
+                self._order_counter += 1
+                self._source_order[key] = self._order_counter
+
+        free_slots = [i for i in range(self.max_controllers) if self._slot_sources[i] is None]
+        unassigned = [k for k in active_keys if k not in self._source_slots]
+        unassigned.sort(key=lambda k: self._source_order.get(k, 0))
+
+        for key in unassigned:
+            if not free_slots:
+                break
+            slot = free_slots.pop(0)
+            self._source_slots[key] = slot
+            self._slot_sources[slot] = key
+
+        for slot in range(self.max_controllers):
+            key = self._slot_sources.get(slot)
+            if key is None or key not in sources:
+                continue
+            gp, pressed_names, xinput_id, backend = sources[key]
+            self.connected[slot] = True
+            self.latest[slot] = gp
+            self.pressed[slot] = pressed_names
+            self.slot_backend[slot] = backend
+            self._slot_xinput[slot] = xinput_id
+            if self.macro_engine is not None:
+                self.macro_engine.check_combo(slot, pressed_names)
+
     # ---------------- Vibration ----------------
 
     def _set_vibration(self, controller_id, left_speed, right_speed):
@@ -180,8 +366,11 @@ class ControllerManager:
         if cid < 0 or cid >= self.max_controllers:
             return
 
-        # If not connected, do nothing
+        # If not connected or not an XInput-backed slot, do nothing
         if not self.connected.get(cid, False):
+            return
+        xinput_cid = self._slot_xinput.get(cid)
+        if xinput_cid is None:
             return
 
         with self._vib_lock:
@@ -190,7 +379,7 @@ class ControllerManager:
 
         def _worker():
             # Start
-            self._set_vibration(cid, left, right)
+            self._set_vibration(xinput_cid, left, right)
             end_t = time.time() + (max(0, int(duration_ms)) / 1000.0)
 
             # Allow cancellation during the vibration
@@ -204,7 +393,7 @@ class ControllerManager:
             with self._vib_lock:
                 still_current = (self._vib_tokens[cid] == token)
             if still_current:
-                self._set_vibration(cid, 0, 0)
+                self._set_vibration(xinput_cid, 0, 0)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -212,30 +401,8 @@ class ControllerManager:
 
     def run(self):
         while True:
-            for cid in range(self.max_controllers):
-                gp = self._get_state(cid)
-
-                if gp is None:
-                    self.connected[cid] = False
-                    self.latest[cid] = None
-                    self.pressed[cid] = tuple()
-
-                    if self.macro_engine is not None:
-                        # Reset runtime combo/hold tracking for disconnected controllers.
-                        self.macro_engine.check_combo(cid, tuple())
-
-                    if self.listen_armed and self._listen_controller == cid:
-                        self.cancel_listen()
-                    continue
-
-                self.connected[cid] = True
-                self.latest[cid] = gp
-
-                pressed_names = self._buttons_to_names(gp.wButtons)
-                self.pressed[cid] = pressed_names
-
-                if self.macro_engine is not None:
-                    self.macro_engine.check_combo(cid, pressed_names)
+            sources = self._get_all_sources()
+            self._sync_slots(sources)
 
             if self.listen_armed:
                 self._listen_tick()
@@ -246,6 +413,9 @@ class ControllerManager:
 
     def get_connected_ids(self):
         return [cid for cid in range(self.max_controllers) if self.connected.get(cid)]
+
+    def get_backend(self, controller_id):
+        return self.slot_backend.get(controller_id)
 
     def get_gamepad(self, controller_id):
         return self.latest.get(controller_id)

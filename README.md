@@ -13,6 +13,8 @@ Multi-controller support with selectable active device
 
 Live connection status updates
 
+Hybrid input assignment: fills controller slots 0–3 by first-connected order across XInput and Bluetooth/other pygame-detected devices
+
 ⚙️ Macro System
 
 Trigger macros using button combinations or hold durations
@@ -132,4 +134,3 @@ Windows
 Python (Tkinter UI)
 
 HID / controller input libraries
-
