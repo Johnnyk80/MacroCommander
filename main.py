@@ -18,44 +18,58 @@ from startup_manager import StartupManager
 def register_builtin_actions(registry: ActionRegistry):
     import subprocess
     import webbrowser
+    import shlex
+
+    def parse_args(arg_text):
+        raw = str(arg_text or "").strip()
+        if not raw:
+            return []
+        try:
+            return shlex.split(raw, posix=False)
+        except Exception:
+            return [raw]
 
     def run_exe(params):
         path = str(params.get("path", "")).strip()
+        args = parse_args(params.get("args", ""))
         if not path:
             return False, "Missing EXE path"
         try:
-            subprocess.Popen([path], shell=False)
-            return True, f"Ran EXE: {path}"
+            subprocess.Popen([path, *args], shell=False)
+            return True, f"Ran EXE: {path} {' '.join(args)}".strip()
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 
     def run_bat(params):
         path = str(params.get("path", "")).strip()
+        args = parse_args(params.get("args", ""))
         if not path:
             return False, "Missing BAT/CMD path"
         try:
-            subprocess.Popen(["cmd.exe", "/c", path], shell=False)
-            return True, f"Ran BAT/CMD: {path}"
+            subprocess.Popen(["cmd.exe", "/c", path, *args], shell=False)
+            return True, f"Ran BAT/CMD: {path} {' '.join(args)}".strip()
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 
     def run_py(params):
         path = str(params.get("path", "")).strip()
+        args = parse_args(params.get("args", ""))
         if not path:
             return False, "Missing PY path"
         try:
-            subprocess.Popen([sys.executable, path], shell=False)
-            return True, f"Ran PY: {path}"
+            subprocess.Popen([sys.executable, path, *args], shell=False)
+            return True, f"Ran PY: {path} {' '.join(args)}".strip()
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 
     def run_ps1(params):
         path = str(params.get("path", "")).strip()
+        args = parse_args(params.get("args", ""))
         if not path:
             return False, "Missing PS1 path"
         try:
-            subprocess.Popen(["powershell", "-ExecutionPolicy", "Bypass", "-File", path], shell=False)
-            return True, f"Ran PS1: {path}"
+            subprocess.Popen(["powershell", "-ExecutionPolicy", "Bypass", "-File", path, *args], shell=False)
+            return True, f"Ran PS1: {path} {' '.join(args)}".strip()
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 
@@ -79,6 +93,11 @@ def register_builtin_actions(registry: ActionRegistry):
                 "label": "Executable",
                 "required": True,
                 "filetypes": [("Executable (*.exe)", "*.exe"), ("All files", "*.*")]
+            },
+            "args": {
+                "type": "string",
+                "label": "Arguments",
+                "required": False,
             }
         },
         run=run_exe
@@ -94,6 +113,11 @@ def register_builtin_actions(registry: ActionRegistry):
                 "label": "Script",
                 "required": True,
                 "filetypes": [("Batch (*.bat;*.cmd)", "*.bat;*.cmd"), ("All files", "*.*")]
+            },
+            "args": {
+                "type": "string",
+                "label": "Arguments",
+                "required": False,
             }
         },
         run=run_bat
@@ -109,6 +133,11 @@ def register_builtin_actions(registry: ActionRegistry):
                 "label": "Script",
                 "required": True,
                 "filetypes": [("Python (*.py)", "*.py"), ("All files", "*.*")]
+            },
+            "args": {
+                "type": "string",
+                "label": "Arguments",
+                "required": False,
             }
         },
         run=run_py
@@ -124,6 +153,11 @@ def register_builtin_actions(registry: ActionRegistry):
                 "label": "Script",
                 "required": True,
                 "filetypes": [("PowerShell (*.ps1)", "*.ps1"), ("All files", "*.*")]
+            },
+            "args": {
+                "type": "string",
+                "label": "Arguments",
+                "required": False,
             }
         },
         run=run_ps1
