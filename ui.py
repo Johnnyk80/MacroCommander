@@ -481,7 +481,7 @@ class MacroPanel(ttk.LabelFrame):
     def _build_param_fields(self, parent, schema: dict, initial_params: dict):
         """
         Creates fields based on schema.
-        Supported types: string, float, bool, file
+        Supported types: string, float, bool, file, choice, slider
         Returns dict: key -> (type, var, meta)
         """
         widgets = {}
@@ -499,6 +499,93 @@ class MacroPanel(ttk.LabelFrame):
                 cb = ttk.Checkbutton(parent, variable=var)
                 cb.grid(row=r, column=1, sticky="w", pady=6)
                 widgets[key] = ("bool", var, meta)
+                r += 1
+                continue
+
+            if ftype == "choice":
+                live_meta = {**meta}
+                options_provider = live_meta.get("options_provider")
+
+                def _normalize_options(opts):
+                    labels = []
+                    value_by_label = {}
+                    for opt in (opts or []):
+                        if isinstance(opt, dict):
+                            value = str(opt.get("value", ""))
+                            label_txt = str(opt.get("label", value))
+                        else:
+                            value = str(opt)
+                            label_txt = value
+                        if not value:
+                            continue
+                        labels.append(label_txt)
+                        value_by_label[label_txt] = value
+                    return labels, value_by_label
+
+                labels, value_by_label = _normalize_options(live_meta.get("options", []) or [])
+
+                initial_val = str(initial_params.get(key, live_meta.get("default", "")) or "")
+                initial_label = next((lbl for lbl, val in value_by_label.items() if val == initial_val), "")
+                if not initial_label and labels:
+                    initial_label = labels[0]
+
+                var = tk.StringVar(value=initial_label)
+
+                def _refresh_choice(v=var, m=live_meta):
+                    provider = m.get("options_provider")
+                    if not callable(provider):
+                        return
+                    try:
+                        fresh = provider()
+                    except Exception:
+                        return
+
+                    current_value = m.get("_value_by_label", {}).get(str(v.get()).strip(), "")
+                    new_labels, new_value_by_label = _normalize_options(fresh)
+                    m["_value_by_label"] = new_value_by_label
+                    cmb.configure(values=new_labels)
+
+                    next_label = next((lbl for lbl, val in new_value_by_label.items() if val == current_value), "")
+                    if not next_label and new_labels:
+                        next_label = new_labels[0]
+                    v.set(next_label)
+
+                cmb = ttk.Combobox(parent, textvariable=var, values=labels, state="readonly", width=56, postcommand=_refresh_choice)
+                cmb.grid(row=r, column=1, sticky="ew", pady=6)
+                cmb.bind("<FocusIn>", lambda _e, fn=_refresh_choice: fn())
+
+                live_meta["_value_by_label"] = value_by_label
+                widgets[key] = ("choice", var, live_meta)
+                r += 1
+                continue
+
+            if ftype == "slider":
+                min_v = float(meta.get("min", 0))
+                max_v = float(meta.get("max", 100))
+                step = float(meta.get("step", 1))
+                default_v = float(initial_params.get(key, meta.get("default", min_v)))
+                default_v = max(min_v, min(max_v, default_v))
+
+                var = tk.DoubleVar(value=default_v)
+                slider_frame = ttk.Frame(parent)
+                slider_frame.grid(row=r, column=1, sticky="ew", pady=6)
+                slider_frame.columnconfigure(0, weight=1)
+
+                value_label = ttk.Label(slider_frame, width=4, text=str(int(round(default_v))))
+
+                def _on_slide(_v=None, value_var=var, out=value_label, s=step):
+                    value = float(value_var.get())
+                    if s > 0:
+                        value = round(value / s) * s
+                    value_var.set(value)
+                    out.config(text=str(int(round(value))))
+
+                scale = ttk.Scale(slider_frame, from_=min_v, to=max_v, variable=var, orient="horizontal", command=_on_slide)
+                scale.grid(row=0, column=0, sticky="ew")
+                value_label.grid(row=0, column=1, padx=(8, 0))
+                _on_slide()
+
+                widgets[key] = ("slider", var, meta)
                 r += 1
                 continue
 
@@ -530,6 +617,15 @@ class MacroPanel(ttk.LabelFrame):
             if ftype == "bool":
                 params[key] = bool(var.get())
             elif ftype == "float":
+                try:
+                    params[key] = float(var.get())
+                except Exception:
+                    params[key] = 0.0
+            elif ftype == "choice":
+                label = str(var.get()).strip()
+                value_by_label = meta.get("_value_by_label", {}) if isinstance(meta, dict) else {}
+                params[key] = str(value_by_label.get(label, label)).strip()
+            elif ftype == "slider":
                 try:
                     params[key] = float(var.get())
                 except Exception:
