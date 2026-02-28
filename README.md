@@ -13,6 +13,7 @@ Multi-controller support with selectable active device
 
 Live connection status updates
 
+
 ⚙️ Macro System
 
 Trigger macros using button combinations or hold durations
@@ -132,4 +133,3 @@ Windows
 Python (Tkinter UI)
 
 HID / controller input libraries
-
