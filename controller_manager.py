@@ -534,10 +534,22 @@ class ControllerManager:
             if self.listen_armed and self._listen_controller == slot:
                 self.cancel_listen()
 
-        for key in active_keys:
+        for key in sources.keys():
             if key not in self._source_order:
                 self._order_counter += 1
                 self._source_order[key] = self._order_counter
+
+        # Compact slot indices so remaining connected controllers shift up.
+        assigned = [
+            self._slot_sources[i]
+            for i in range(self.max_controllers)
+            if self._slot_sources.get(i) in active_keys
+        ]
+        self._slot_sources = {i: None for i in range(self.max_controllers)}
+        self._source_slots = {}
+        for i, key in enumerate(assigned[:self.max_controllers]):
+            self._slot_sources[i] = key
+            self._source_slots[key] = i
 
         free_slots = [i for i in range(self.max_controllers) if self._slot_sources[i] is None]
         unassigned = [k for k in active_keys if k not in self._source_slots]
