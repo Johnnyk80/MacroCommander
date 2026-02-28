@@ -311,20 +311,35 @@ def _list_devices() -> List[Dict[str, str]]:
     return safe
 
 
+def _to_choice_options(devices: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    return [{"label": f"{d['name']} ({d['id']})", "value": d["id"]} for d in devices]
+
+
 def register(registry):
     is_windows = platform.system().lower() == "windows"
 
     devices: List[Dict[str, str]] = []
-    device_options: List[Dict[str, str]] = []
     description = (
         "Switches default Windows playback device and sets that device master volume. "
-        "Scans active output devices when plugin loads."
+        "Scans active output devices when plugin loads and when the device dropdown opens."
     )
+
+    def refresh_devices() -> List[Dict[str, str]]:
+        nonlocal devices
+        if not is_windows:
+            return []
+        devices = _list_devices()
+        return devices
+
+    def get_device_options() -> List[Dict[str, str]]:
+        try:
+            return _to_choice_options(refresh_devices())
+        except Exception:
+            return _to_choice_options(devices)
 
     if is_windows:
         try:
-            devices = _list_devices()
-            device_options = [{"label": f"{d['name']} ({d['id']})", "value": d["id"]} for d in devices]
+            refresh_devices()
         except Exception as ex:
             description += f" Device scan failed: {ex}"
     else:
@@ -338,7 +353,7 @@ def register(registry):
 
         device_id = str(params.get("device_id", "")).strip()
         if not device_id:
-            return False, "Choose a device_id from the scanned list."
+            return False, "Choose a playback device from the list."
 
         try:
             volume_percent = float(params.get("volume_percent", 50.0))
@@ -380,12 +395,16 @@ def register(registry):
                 "type": "choice",
                 "label": "Playback Device",
                 "required": True,
-                "options": device_options,
+                "options": get_device_options(),
+                "options_provider": get_device_options,
             },
             "volume_percent": {
-                "type": "float",
+                "type": "slider",
                 "label": "Volume Percent (0-100)",
                 "required": True,
+                "min": 0,
+                "max": 100,
+                "step": 1,
                 "default": 50,
             },
             "set_as_default": {
