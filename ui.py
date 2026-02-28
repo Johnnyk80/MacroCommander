@@ -138,17 +138,14 @@ class ControllerMonitor(ttk.LabelFrame):
             "line": "#C7D5E7",
             "accent": "#3D7EF4",
             "accent_soft": "#DDE9FF",
-            "ok": "#18B777",
-            "warn": "#F0B429",
             "panel": "#FFFFFF",
         }
 
         self.inner = ttk.Frame(self)
         self.inner.pack(fill="both", expand=True, padx=8, pady=8)
 
-        # Center all monitor content inside the LabelFrame
         self.content = ttk.Frame(self.inner)
-        self.content.place(relx=0.5, rely=0.5, anchor="center")
+        self.content.place(relx=0.5, rely=0.0, anchor="n")
 
         top = ttk.Frame(self.content)
         top.pack(fill="x", padx=8, pady=6)
@@ -162,32 +159,37 @@ class ControllerMonitor(ttk.LabelFrame):
         self.status_label = ttk.Label(top, text="Status: (waiting)")
         self.status_label.pack(side="left", padx=12)
 
-        body = tk.Frame(self.content, bg=self.palette["bg"], highlightthickness=1, highlightbackground=self.palette["line"])
-        body.pack(fill="both", expand=True, padx=8, pady=(4, 8))
+        body = tk.Frame(
+            self.content,
+            bg=self.palette["bg"],
+            highlightthickness=1,
+            highlightbackground=self.palette["line"],
+            width=880,
+            height=405,
+        )
+        body.pack(fill="both", expand=True, padx=8, pady=(4, 14))
+        body.pack_propagate(False)
 
-        left = tk.Frame(body, bg=self.palette["bg"])
-        left.pack(side="left", fill="both", expand=True, padx=(14, 10), pady=12)
+        xinput = tk.Frame(body, bg=self.palette["bg"])
+        xinput.pack(fill="both", expand=True, padx=20, pady=16)
 
-        right = tk.Frame(body, bg=self.palette["bg"])
-        right.pack(side="left", fill="both", expand=True, padx=(10, 14), pady=12)
-
-        header = tk.Frame(left, bg=self.palette["bg"])
+        header = tk.Frame(xinput, bg=self.palette["bg"])
         header.pack(fill="x")
-        tk.Label(header, text="xinput", font=("Segoe UI", 28, "bold"), fg=self.palette["ink"], bg=self.palette["bg"]).pack(anchor="w")
+        tk.Label(header, text="xinput", font=("Segoe UI", 34, "bold"), fg=self.palette["ink"], bg=self.palette["bg"]).pack(anchor="w")
 
-        metrics = tk.Frame(left, bg=self.palette["bg"])
+        metrics = tk.Frame(xinput, bg=self.palette["bg"])
         metrics.pack(fill="x", pady=(10, 14))
         self.metric_values = {}
         metric_cols = [("INDEX", "index"), ("CONNECTED", "connected"), ("MAPPING", "mapping"), ("TIMESTAMP", "timestamp")]
         for col, (label, key) in enumerate(metric_cols):
             cell = tk.Frame(metrics, bg=self.palette["bg"])
-            cell.grid(row=0, column=col, padx=(0, 20), sticky="w")
+            cell.grid(row=0, column=col, padx=(0, 32), sticky="w")
             tk.Label(cell, text=label, font=("Segoe UI", 9), fg=self.palette["muted"], bg=self.palette["bg"]).pack(anchor="w")
             value = tk.Label(cell, text="-", font=("Segoe UI", 14, "bold"), fg=self.palette["ink"], bg=self.palette["bg"])
             value.pack(anchor="w")
             self.metric_values[key] = value
 
-        button_grid = tk.Frame(left, bg=self.palette["bg"])
+        button_grid = tk.Frame(xinput, bg=self.palette["bg"])
         button_grid.pack(fill="x", pady=(0, 12))
         self.button_labels = {}
         button_order = ["A", "B", "X", "Y", "LB", "RB", "Back", "Start", "LS", "RS", "DPad Up", "DPad Down", "DPad Left", "DPad Right"]
@@ -195,31 +197,40 @@ class ControllerMonitor(ttk.LabelFrame):
             cell = tk.Frame(button_grid, bg=self.palette["bg"])
             cell.grid(row=i // 7, column=i % 7, padx=4, pady=4, sticky="w")
             tk.Label(cell, text=name, font=("Segoe UI", 8), fg=self.palette["muted"], bg=self.palette["bg"]).pack(anchor="w")
-            lbl = tk.Label(cell, text="0.00", width=6, anchor="w", font=("Consolas", 10, "bold"), fg=self.palette["ink"], bg=self.palette["panel"], relief="flat")
+            lbl = tk.Label(
+                cell,
+                text="0.00",
+                width=6,
+                anchor="w",
+                font=("Consolas", 10, "bold"),
+                fg=self.palette["ink"],
+                bg=self.palette["panel"],
+                relief="flat",
+            )
             lbl.pack(anchor="w")
             self.button_labels[name] = lbl
 
-        lower = tk.Frame(left, bg=self.palette["bg"])
+        lower = tk.Frame(xinput, bg=self.palette["bg"])
         lower.pack(fill="both", expand=True)
 
         trig = tk.Frame(lower, bg=self.palette["bg"])
-        trig.pack(side="left", fill="both", expand=True, padx=(0, 12))
+        trig.pack(side="left", fill="both", expand=True, padx=(0, 16), anchor="n")
 
         tk.Label(trig, text="L TRIGGER", bg=self.palette["bg"], fg=self.palette["muted"], font=("Segoe UI", 10)).grid(row=0, column=0, sticky="w")
-        self.lt_canvas = tk.Canvas(trig, width=220, height=16, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
-        self.lt_canvas.grid(row=1, column=0, sticky="w", pady=(2, 8))
+        self.lt_canvas = tk.Canvas(trig, width=300, height=16, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
+        self.lt_canvas.grid(row=1, column=0, sticky="w", pady=(2, 10))
         self.lt_bar = self.lt_canvas.create_rectangle(0, 0, 0, 16, fill=self.palette["accent"], width=0)
 
         tk.Label(trig, text="R TRIGGER", bg=self.palette["bg"], fg=self.palette["muted"], font=("Segoe UI", 10)).grid(row=2, column=0, sticky="w")
-        self.rt_canvas = tk.Canvas(trig, width=220, height=16, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
+        self.rt_canvas = tk.Canvas(trig, width=300, height=16, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
         self.rt_canvas.grid(row=3, column=0, sticky="w", pady=(2, 0))
         self.rt_bar = self.rt_canvas.create_rectangle(0, 0, 0, 16, fill=self.palette["accent"], width=0)
 
         sticks = tk.Frame(lower, bg=self.palette["bg"])
-        sticks.pack(side="left", fill="both", expand=True)
+        sticks.pack(side="left", fill="both", expand=True, anchor="n")
 
         self.left_canvas = tk.Canvas(sticks, width=160, height=160, bg=self.palette["bg"], highlightthickness=0)
-        self.left_canvas.grid(row=0, column=0, padx=(0, 10))
+        self.left_canvas.grid(row=0, column=0, padx=(0, 18))
         self.right_canvas = tk.Canvas(sticks, width=160, height=160, bg=self.palette["bg"], highlightthickness=0)
         self.right_canvas.grid(row=0, column=1)
 
@@ -230,48 +241,6 @@ class ControllerMonitor(ttk.LabelFrame):
 
         self.left_dot = self.left_canvas.create_oval(75, 75, 85, 85, fill=self.palette["accent"], outline="")
         self.right_dot = self.right_canvas.create_oval(75, 75, 85, 85, fill=self.palette["accent"], outline="")
-
-        self.controller_canvas = tk.Canvas(right, width=500, height=330, bg=self.palette["bg"], highlightthickness=0)
-        self.controller_canvas.pack(fill="both", expand=True)
-        self._draw_controller_figure()
-
-    def _draw_controller_figure(self):
-        c = self.controller_canvas
-        p = self.palette
-        c.delete("all")
-
-        c.create_oval(46, 30, 116, 96, outline=p["line"], width=3, fill=p["bg"], tags="lt")
-        c.create_oval(382, 30, 452, 96, outline=p["line"], width=3, fill=p["bg"], tags="rt")
-
-        c.create_polygon(
-            110, 110, 390, 110, 440, 138, 470, 230, 470, 300, 435, 340,
-            362, 278, 140, 278, 67, 340, 30, 300, 30, 230, 60, 138,
-            outline=p["line"], width=3, smooth=True, fill="#EEF3FA"
-        )
-
-        c.create_oval(110, 145, 180, 215, outline=p["ink"], width=3, fill="#F8FAFD", tags="ls")
-        c.create_oval(255, 195, 325, 265, outline=p["ink"], width=3, fill="#F8FAFD", tags="rs")
-
-        c.create_oval(180, 165, 230, 215, outline=p["line"], width=2, fill="#F8FAFD", tags="dpad")
-        c.create_line(205, 173, 205, 207, width=2, fill=p["ink"])
-        c.create_line(188, 190, 222, 190, width=2, fill=p["ink"])
-
-        face = {
-            "Y": (365, 165),
-            "X": (335, 190),
-            "B": (395, 190),
-            "A": (365, 215),
-        }
-        self.face_items = {}
-        for name, (x, y) in face.items():
-            self.face_items[name] = c.create_oval(x - 16, y - 16, x + 16, y + 16, outline=p["ink"], width=2, fill="#F8FAFD")
-
-        self.special_items = {
-            "Back": c.create_oval(224, 176, 242, 194, outline=p["ink"], width=2, fill="#F8FAFD"),
-            "Start": c.create_oval(258, 176, 276, 194, outline=p["ink"], width=2, fill="#F8FAFD"),
-            "LB": c.create_rectangle(86, 96, 132, 108, outline=p["ink"], width=2, fill="#F8FAFD"),
-            "RB": c.create_rectangle(366, 96, 412, 108, outline=p["ink"], width=2, fill="#F8FAFD"),
-        }
 
     def _set_metric(self, key, value):
         lbl = self.metric_values.get(key)
@@ -290,7 +259,7 @@ class ControllerMonitor(ttk.LabelFrame):
         except Exception:
             pct = 0.0
         pct = max(0.0, min(1.0, pct))
-        canvas.coords(bar, 0, 0, int(220 * pct), 16)
+        canvas.coords(bar, 0, 0, int(300 * pct), 16)
 
     def _set_stick(self, canvas, dot, x, y):
         nx = float(x) / STICK_MAX
@@ -316,15 +285,6 @@ class ControllerMonitor(ttk.LabelFrame):
             self._set_bar(self.rt_canvas, self.rt_bar, 0)
             self._set_stick(self.left_canvas, self.left_dot, 0, 0)
             self._set_stick(self.right_canvas, self.right_dot, 0, 0)
-            self.controller_canvas.itemconfig("lt", fill=self.palette["bg"], outline=self.palette["line"])
-            self.controller_canvas.itemconfig("rt", fill=self.palette["bg"], outline=self.palette["line"])
-            self.controller_canvas.itemconfig("ls", fill="#F8FAFD")
-            self.controller_canvas.itemconfig("rs", fill="#F8FAFD")
-            self.controller_canvas.itemconfig("dpad", fill="#F8FAFD")
-            for item in self.face_items.values():
-                self.controller_canvas.itemconfig(item, fill="#F8FAFD")
-            for item in self.special_items.values():
-                self.controller_canvas.itemconfig(item, fill="#F8FAFD")
             return
 
         gp = self.cm.get_gamepad(cid)
@@ -350,19 +310,6 @@ class ControllerMonitor(ttk.LabelFrame):
         self._set_stick(self.left_canvas, self.left_dot, gp.sThumbLX, gp.sThumbLY)
         self._set_stick(self.right_canvas, self.right_dot, gp.sThumbRX, gp.sThumbRY)
 
-        lt_active = gp.bLeftTrigger > 10
-        rt_active = gp.bRightTrigger > 10
-        self.controller_canvas.itemconfig("lt", fill=self.palette["accent_soft"] if lt_active else self.palette["bg"])
-        self.controller_canvas.itemconfig("rt", fill=self.palette["accent_soft"] if rt_active else self.palette["bg"])
-        self.controller_canvas.itemconfig("ls", fill=self.palette["accent_soft"] if "LS" in pressed else "#F8FAFD")
-        self.controller_canvas.itemconfig("rs", fill=self.palette["accent_soft"] if "RS" in pressed else "#F8FAFD")
-        self.controller_canvas.itemconfig("dpad", fill=self.palette["accent_soft"] if any(b in pressed for b in ("DPad Up", "DPad Down", "DPad Left", "DPad Right")) else "#F8FAFD")
-
-        for btn, item in self.face_items.items():
-            self.controller_canvas.itemconfig(item, fill=self.palette["accent_soft"] if btn in pressed else "#F8FAFD")
-        for btn, item in self.special_items.items():
-            self.controller_canvas.itemconfig(item, fill=self.palette["accent_soft"] if btn in pressed else "#F8FAFD")
-
 
 class MacroPanel(ttk.LabelFrame):
     def __init__(self, parent, macro_engine, controller_manager, registry):
@@ -387,16 +334,16 @@ class MacroPanel(ttk.LabelFrame):
             self.tree_container,
             columns=("Combo", "Hold", "Steps", "Active"),
             show="headings",
-            height=8
+            height=6
         )
         self.tree.heading("Combo", text="Combo")
         self.tree.heading("Hold", text="Hold")
         self.tree.heading("Steps", text="Steps")
         self.tree.heading("Active", text="Active")
 
-        self.tree.column("Combo", width=240, stretch=False)
+        self.tree.column("Combo", width=200, stretch=False)
         self.tree.column("Hold", width=70, stretch=False)
-        self.tree.column("Steps", width=450, stretch=True)
+        self.tree.column("Steps", width=360, stretch=True)
         self.tree.column("Active", width=70, stretch=False)
 
         self.vscroll = ttk.Scrollbar(self.tree_container, orient="vertical", command=self.tree.yview)
@@ -1023,7 +970,7 @@ class AppUI:
         top_container.pack(fill="x", padx=10, pady=10)
         # Keep the Controller Monitor tall even when its inner content is centered
         top_container.pack_propagate(False)
-        top_container.configure(height=420)
+        top_container.configure(height=500)
 
         self.monitor = ControllerMonitor(top_container, self.cm)
         self.monitor.pack(fill="both", expand=True)
