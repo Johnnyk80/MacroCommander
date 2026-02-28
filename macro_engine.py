@@ -169,13 +169,20 @@ class MacroEngine:
         self._normalize_steps(macro)
 
         # Basic duplicate check (combo+hold+steps)
+        def freeze(value):
+            if isinstance(value, dict):
+                return tuple(sorted((str(k), freeze(v)) for k, v in value.items()))
+            if isinstance(value, (list, tuple, set)):
+                return tuple(freeze(v) for v in value)
+            return value
+
         def sig(m):
             s = []
             for st in m.get("steps", []):
                 if st.get("kind") == "wait":
                     s.append(("wait", float(st.get("seconds", 0.0))))
                 else:
-                    s.append(("run", st.get("action_id", ""), tuple(sorted((st.get("params", {}) or {}).items()))))
+                    s.append(("run", st.get("action_id", ""), freeze(st.get("params", {}) or {})))
             return (tuple(self._normalize_combo(m.get("combo", []))),
                     float(m.get("hold_seconds", 0.0)),
                     tuple(s))
@@ -229,13 +236,20 @@ class MacroEngine:
         }
         self._normalize_steps(candidate)
 
+        def freeze(value):
+            if isinstance(value, dict):
+                return tuple(sorted((str(k), freeze(v)) for k, v in value.items()))
+            if isinstance(value, (list, tuple, set)):
+                return tuple(freeze(v) for v in value)
+            return value
+
         def sig(m2):
             s = []
             for st in m2.get("steps", []):
                 if st.get("kind") == "wait":
                     s.append(("wait", float(st.get("seconds", 0.0))))
                 else:
-                    s.append(("run", st.get("action_id", ""), tuple(sorted((st.get("params", {}) or {}).items()))))
+                    s.append(("run", st.get("action_id", ""), freeze(st.get("params", {}) or {})))
             return (tuple(self._normalize_combo(m2.get("combo", []))),
                     float(m2.get("hold_seconds", 0.0)),
                     tuple(s))
