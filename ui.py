@@ -481,7 +481,7 @@ class MacroPanel(ttk.LabelFrame):
     def _build_param_fields(self, parent, schema: dict, initial_params: dict):
         """
         Creates fields based on schema.
-        Supported types: string, float, bool, file
+        Supported types: string, float, bool, file, choice
         Returns dict: key -> (type, var, meta)
         """
         widgets = {}
@@ -499,6 +499,34 @@ class MacroPanel(ttk.LabelFrame):
                 cb = ttk.Checkbutton(parent, variable=var)
                 cb.grid(row=r, column=1, sticky="w", pady=6)
                 widgets[key] = ("bool", var, meta)
+                r += 1
+                continue
+
+            if ftype == "choice":
+                options = meta.get("options", []) or []
+                labels = []
+                value_by_label = {}
+                for opt in options:
+                    if isinstance(opt, dict):
+                        value = str(opt.get("value", ""))
+                        label_txt = str(opt.get("label", value))
+                    else:
+                        value = str(opt)
+                        label_txt = value
+                    if not value:
+                        continue
+                    labels.append(label_txt)
+                    value_by_label[label_txt] = value
+
+                initial_val = str(initial_params.get(key, meta.get("default", "")) or "")
+                initial_label = next((lbl for lbl, val in value_by_label.items() if val == initial_val), "")
+                if not initial_label and labels:
+                    initial_label = labels[0]
+
+                var = tk.StringVar(value=initial_label)
+                cmb = ttk.Combobox(parent, textvariable=var, values=labels, state="readonly", width=56)
+                cmb.grid(row=r, column=1, sticky="ew", pady=6)
+                widgets[key] = ("choice", var, {**meta, "_value_by_label": value_by_label})
                 r += 1
                 continue
 
@@ -534,6 +562,10 @@ class MacroPanel(ttk.LabelFrame):
                     params[key] = float(var.get())
                 except Exception:
                     params[key] = 0.0
+            elif ftype == "choice":
+                label = str(var.get()).strip()
+                value_by_label = meta.get("_value_by_label", {}) if isinstance(meta, dict) else {}
+                params[key] = str(value_by_label.get(label, label)).strip()
             else:
                 params[key] = str(var.get()).strip()
         return params
