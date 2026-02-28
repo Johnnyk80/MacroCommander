@@ -942,7 +942,7 @@ class AppUI:
         self._start_minimized_var = tk.BooleanVar(value=bool(startup_options.get("start_minimized", False)))
 
         self.root.title("Controller Macro Runner")
-        self.root.geometry("950x700")
+        self.root.geometry("950x820")
 
         menubar = tk.Menu(self.root)
 
