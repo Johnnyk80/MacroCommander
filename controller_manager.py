@@ -152,16 +152,18 @@ PYGAME_BUTTON_MAP = {
 }
 
 WINMM_BUTTON_MAP = {
+    # Common DirectInput/WinMM layout seen on many Bluetooth "6 axis 16 button" pads:
+    # 0:A 1:B 2:X 3:Y 4:Back 5:Start 6:LS 7:RS 8:LB 9:RB
     0: "A",
     1: "B",
     2: "X",
     3: "Y",
-    4: "LB",
-    5: "RB",
-    6: "Back",
-    7: "Start",
-    8: "LS",
-    9: "RS",
+    4: "Back",
+    5: "Start",
+    6: "LS",
+    7: "RS",
+    8: "LB",
+    9: "RB",
 }
 
 
@@ -406,9 +408,11 @@ class ControllerManager:
         state = GenericGamepadState()
         state.sThumbLX = self._axis_uint_to_short(info.dwXpos)
         state.sThumbLY = -self._axis_uint_to_short(info.dwYpos)
-        state.sThumbRX = self._axis_uint_to_short(info.dwRpos)
-        state.sThumbRY = -self._axis_uint_to_short(info.dwUpos)
-        state.bLeftTrigger = self._axis_uint_to_trigger(info.dwZpos)
+        # Typical WinMM axis layout on generic BT pads: X/Y = left stick, Z/R = right stick.
+        # U/V are often slider/trigger-like channels.
+        state.sThumbRX = self._axis_uint_to_short(info.dwZpos)
+        state.sThumbRY = -self._axis_uint_to_short(info.dwRpos)
+        state.bLeftTrigger = self._axis_uint_to_trigger(info.dwUpos)
         state.bRightTrigger = self._axis_uint_to_trigger(info.dwVpos)
 
         pressed = set()
