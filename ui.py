@@ -385,10 +385,10 @@ class ControllerMonitor(ttk.LabelFrame):
         self._set_metric("mapping", "xinput")
 
         self.bluetooth_frame.pack_forget()
-        self.xinput_frame.pack_forget()
         self.disconnected_frame.pack_forget()
 
         if not connected:
+            self.xinput_frame.pack_forget()
             dsig = (cid, False)
             if self._last_render_sig != dsig:
                 self._last_render_sig = dsig
@@ -414,6 +414,8 @@ class ControllerMonitor(ttk.LabelFrame):
         gp = self.cm.get_gamepad(cid)
         pressed = set(self.cm.get_pressed_combo(cid))
 
+        self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
+
         sig = (
             cid,
             True,
@@ -435,7 +437,6 @@ class ControllerMonitor(ttk.LabelFrame):
         self._set_metric("mapping", "xinput")
         self._set_metric("timestamp", f"{getattr(gp, 'dwPacketNumber', 0)}")
 
-        self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
         for name, lbl in self.button_labels.items():
             is_pressed = name in pressed
             lbl.config(
