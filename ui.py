@@ -245,6 +245,16 @@ class ControllerMonitor(ttk.LabelFrame):
         self.bluetooth_frame = tk.Frame(body, bg=self.palette["bg"])
         self._build_bluetooth_layout(self.bluetooth_frame)
 
+        self.disconnected_frame = tk.Frame(body, bg=self.palette["bg"])
+        self.disconnected_label = tk.Label(
+            self.disconnected_frame,
+            text="Controller disconnected",
+            font=("Segoe UI", 18, "bold"),
+            fg=self.palette["muted"],
+            bg=self.palette["bg"],
+        )
+        self.disconnected_label.pack(expand=True)
+
     def _build_bluetooth_layout(self, parent):
         header = tk.Frame(parent, bg=self.palette["bg"])
         header.pack(fill="x", pady=(0, 8))
@@ -376,18 +386,17 @@ class ControllerMonitor(ttk.LabelFrame):
         self._set_metric("mapping", backend)
 
         show_generic = backend != "xinput"
-        if show_generic:
-            self.bluetooth_frame.pack_forget()
-            self.xinput_frame.pack_forget()
-            self.bluetooth_frame.pack(fill="both", expand=True, padx=20, pady=16)
-        else:
-            self.bluetooth_frame.pack_forget()
-            self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
+
+        self.bluetooth_frame.pack_forget()
+        self.xinput_frame.pack_forget()
+        self.disconnected_frame.pack_forget()
 
         if not connected:
             self.status_label.config(text=f"Status: Controller {cid} not connected")
             self._set_metric("connected", "No")
+            self._set_metric("mapping", "-")
             self._set_metric("timestamp", "-")
+            self.disconnected_frame.pack(fill="both", expand=True, padx=20, pady=16)
             for lbl in self.button_labels.values():
                 lbl.config(text="0.00", bg=self.palette["panel"], fg=self.palette["ink"])
             self._set_bar(self.lt_canvas, self.lt_bar, 0)
@@ -407,9 +416,11 @@ class ControllerMonitor(ttk.LabelFrame):
 
         self.status_label.config(text=f"Status: Controller {cid} connected ({label})")
         self._set_metric("connected", "Yes")
+        self._set_metric("mapping", backend)
         self._set_metric("timestamp", f"{getattr(gp, 'dwPacketNumber', 0)}")
 
         if show_generic:
+            self.bluetooth_frame.pack(fill="both", expand=True, padx=20, pady=16)
             self.bt_title.config(text=f"Bluetooth / Generic Controller - {label}")
             self._set_xy_dot(getattr(gp, 'sThumbLX', 0), getattr(gp, 'sThumbLY', 0))
             self._set_signed_axis_bar(self.bt_z_canvas, self.bt_z_bar, getattr(gp, 'sThumbRX', 0))
@@ -420,6 +431,7 @@ class ControllerMonitor(ttk.LabelFrame):
                 self._set_generic_button(i, i in generic)
             return
 
+        self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
         for name, lbl in self.button_labels.items():
             is_pressed = name in pressed
             lbl.config(

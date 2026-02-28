@@ -608,49 +608,53 @@ class ControllerManager:
     def _sync_slots(self, sources):
         active_keys = set(sources.keys())
 
-        for key in list(self._source_slots.keys()):
-            if key in active_keys:
-                continue
-            slot = self._source_slots.pop(key)
-            self._slot_sources[slot] = None
-            self.connected[slot] = False
-            self.latest[slot] = None
-            self.pressed[slot] = tuple()
-            self.slot_backend[slot] = None
-            self.slot_label[slot] = None
-            self._slot_xinput[slot] = None
-            if self.macro_engine is not None:
-                self.macro_engine.check_combo(slot, tuple())
-            if self.listen_armed and self._listen_controller == slot:
-                self.cancel_listen()
+        # Clear any slots that are no longer active.
+        for slot in range(self.max_controllers):
+            key = self._slot_sources.get(slot)
+            if key is not None and key not in active_keys:
+                self._slot_sources[slot] = None
+                self.connected[slot] = False
+                self.latest[slot] = None
+                self.pressed[slot] = tuple()
+                self.slot_backend[slot] = None
+                self.slot_label[slot] = None
+                self._slot_xinput[slot] = None
+                if self.macro_engine is not None:
+                    self.macro_engine.check_combo(slot, tuple())
+                if self.listen_armed and self._listen_controller == slot:
+                    self.cancel_listen()
 
         for key in sources.keys():
             if key not in self._source_order:
                 self._order_counter += 1
                 self._source_order[key] = self._order_counter
 
-        # Compact slot indices so remaining connected controllers shift up.
-        assigned = [
-            self._slot_sources[i]
-            for i in range(self.max_controllers)
-            if self._slot_sources.get(i) in active_keys
-        ]
+        # Rebuild slot assignment every tick so backend changes reflow cleanly.
+        # Priority: XInput first, then first-seen order.
+        ordered_keys = sorted(
+            active_keys,
+            key=lambda k: (
+                0 if str(k[0]).lower() == "xinput" else 1,
+                self._source_order.get(k, 10**9),
+            ),
+        )
+
         self._slot_sources = {i: None for i in range(self.max_controllers)}
         self._source_slots = {}
-        for i, key in enumerate(assigned[:self.max_controllers]):
-            self._slot_sources[i] = key
-            self._source_slots[key] = i
-
-        free_slots = [i for i in range(self.max_controllers) if self._slot_sources[i] is None]
-        unassigned = [k for k in active_keys if k not in self._source_slots]
-        unassigned.sort(key=lambda k: self._source_order.get(k, 0))
-
-        for key in unassigned:
-            if not free_slots:
-                break
-            slot = free_slots.pop(0)
-            self._source_slots[key] = slot
+        for slot, key in enumerate(ordered_keys[:self.max_controllers]):
             self._slot_sources[slot] = key
+            self._source_slots[key] = slot
+
+        # Reset trailing slots
+        for slot in range(len(ordered_keys), self.max_controllers):
+            self.connected[slot] = False
+            self.latest[slot] = None
+            self.pressed[slot] = tuple()
+            self.slot_backend[slot] = None
+            self.slot_label[slot] = None
+            self._slot_xinput[slot] = None
+            if self.listen_armed and self._listen_controller == slot:
+                self.cancel_listen()
 
         for slot in range(self.max_controllers):
             key = self._slot_sources.get(slot)
