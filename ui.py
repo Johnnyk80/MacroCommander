@@ -130,6 +130,7 @@ class ControllerMonitor(ttk.LabelFrame):
         super().__init__(parent, text="Controller Monitor")
         self.cm = controller_manager
         self.selected_controller = tk.IntVar(value=0)
+        self._last_render_sig = None
 
         self.palette = {
             "bg": "#F5F7FB",
@@ -388,6 +389,9 @@ class ControllerMonitor(ttk.LabelFrame):
         self.disconnected_frame.pack_forget()
 
         if not connected:
+            dsig = (cid, False)
+            if self._last_render_sig != dsig:
+                self._last_render_sig = dsig
             self.status_label.config(text=f"Status: Controller {cid} not connected")
             self._set_metric("connected", "No")
             self._set_metric("mapping", "-")
@@ -410,7 +414,23 @@ class ControllerMonitor(ttk.LabelFrame):
         gp = self.cm.get_gamepad(cid)
         pressed = set(self.cm.get_pressed_combo(cid))
 
-        self.status_label.config(text=f"Status: Controller {cid} connected (XInput Controller {cid})")
+        sig = (
+            cid,
+            True,
+            getattr(gp, 'dwPacketNumber', 0),
+            tuple(sorted(pressed)),
+            getattr(gp, 'bLeftTrigger', 0),
+            getattr(gp, 'bRightTrigger', 0),
+            getattr(gp, 'sThumbLX', 0),
+            getattr(gp, 'sThumbLY', 0),
+            getattr(gp, 'sThumbRX', 0),
+            getattr(gp, 'sThumbRY', 0),
+        )
+        if self._last_render_sig == sig:
+            return
+        self._last_render_sig = sig
+
+        self.status_label.config(text=f"Status: Controller {cid} connected ({self.cm.get_device_label(cid)})")
         self._set_metric("connected", "Yes")
         self._set_metric("mapping", "xinput")
         self._set_metric("timestamp", f"{getattr(gp, 'dwPacketNumber', 0)}")

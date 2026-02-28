@@ -69,16 +69,9 @@ BUTTON_MAP = {
 
 
 class ControllerManager:
-    """
-    Polls up to 4 XInput controllers.
-    Stores latest states for UI, and sends combos to macro engine.
-    Supports Listen Mode: press buttons (any order) + release -> captures FULL union combo
-    from FIRST controller that presses.
+    """XInput-only controller manager with logical queue-style slot compaction."""
 
-    Also provides vibration feedback via XInputSetState.
-    """
-
-    def __init__(self, macro_engine, max_controllers=4, poll_hz=100):
+    def __init__(self, macro_engine, max_controllers=4, poll_hz=125):
         self.macro_engine = macro_engine
         self.max_controllers = int(max_controllers)
         self.sleep_s = 1.0 / float(poll_hz)
@@ -86,6 +79,10 @@ class ControllerManager:
         self.connected = {i: False for i in range(self.max_controllers)}
         self.latest = {i: None for i in range(self.max_controllers)}
         self.pressed = {i: tuple() for i in range(self.max_controllers)}
+
+        # Logical<->physical mapping (queue behavior)
+        self._logical_to_physical = {i: None for i in range(self.max_controllers)}
+        self._physical_to_logical = {}
 
         self.listen_armed = False
         self.listen_callback = None
@@ -114,7 +111,7 @@ class ControllerManager:
         if self._listen_controller is None:
             for cid in range(self.max_controllers):
                 combo = self.pressed.get(cid, tuple())
-                if self.connected.get(cid) and len(combo) > 0:
+                if self.connected.get(cid) and combo:
                     self._listen_controller = cid
                     self._listen_seen_any_press = True
                     self._listen_union.update(combo)
@@ -122,7 +119,6 @@ class ControllerManager:
             return
 
         combo = self.pressed.get(self._listen_controller, tuple())
-
         if combo:
             self._listen_seen_any_press = True
             self._listen_union.update(combo)
@@ -132,9 +128,7 @@ class ControllerManager:
             cb = self.listen_callback
             cid = self._listen_controller
             captured = tuple(sorted(self._listen_union))
-
             self.cancel_listen()
-
             if cb:
                 cb(cid, captured)
 
@@ -147,21 +141,21 @@ class ControllerManager:
             return None
         return state.Gamepad
 
-    def _buttons_to_names(self, wButtons):
+    def _buttons_to_names(self, wbuttons):
         out = []
         for mask, name in BUTTON_MAP.items():
-            if wButtons & mask:
+            if wbuttons & mask:
                 out.append(name)
         out.sort()
         return tuple(out)
 
-    def _set_vibration(self, controller_id, left_speed, right_speed):
+    def _set_vibration(self, physical_id, left_speed, right_speed):
         if XINPUT is None:
             return 1
         left = int(max(0, min(65535, left_speed)))
         right = int(max(0, min(65535, right_speed)))
         vib = XINPUT_VIBRATION(left, right)
-        return XINPUT.XInputSetState(controller_id, ctypes.byref(vib))
+        return XINPUT.XInputSetState(physical_id, ctypes.byref(vib))
 
     def vibrate(self, controller_id, left=32000, right=32000, duration_ms=120):
         cid = int(controller_id)
@@ -170,52 +164,81 @@ class ControllerManager:
         if not self.connected.get(cid, False):
             return
 
+        physical_id = self._logical_to_physical.get(cid)
+        if physical_id is None:
+            return
+
         with self._vib_lock:
             self._vib_tokens[cid] += 1
             token = self._vib_tokens[cid]
 
         def _worker():
-            self._set_vibration(cid, left, right)
+            self._set_vibration(physical_id, left, right)
             end_t = time.time() + (max(0, int(duration_ms)) / 1000.0)
-
             while time.time() < end_t:
                 with self._vib_lock:
                     if self._vib_tokens[cid] != token:
                         break
                 time.sleep(0.01)
-
             with self._vib_lock:
                 still_current = (self._vib_tokens[cid] == token)
             if still_current:
-                self._set_vibration(cid, 0, 0)
+                self._set_vibration(physical_id, 0, 0)
 
         threading.Thread(target=_worker, daemon=True).start()
 
+    def _compact_mappings(self, active_physical_ids):
+        # Remove disconnected physical ids from current queue
+        keep = []
+        for logical in range(self.max_controllers):
+            pid = self._logical_to_physical.get(logical)
+            if pid in active_physical_ids:
+                keep.append(pid)
+
+        # Append newly connected physical ids in physical index order
+        for pid in active_physical_ids:
+            if pid not in keep:
+                keep.append(pid)
+
+        self._logical_to_physical = {i: None for i in range(self.max_controllers)}
+        self._physical_to_logical = {}
+        for logical, pid in enumerate(keep[:self.max_controllers]):
+            self._logical_to_physical[logical] = pid
+            self._physical_to_logical[pid] = logical
+
     def run(self):
         while True:
-            for cid in range(self.max_controllers):
-                gp = self._get_state(cid)
+            physical_states = {}
+            for physical_id in range(self.max_controllers):
+                gp = self._get_state(physical_id)
+                if gp is not None:
+                    physical_states[physical_id] = gp
 
-                if gp is None:
-                    self.connected[cid] = False
-                    self.latest[cid] = None
-                    self.pressed[cid] = tuple()
+            self._compact_mappings(sorted(physical_states.keys()))
 
-                    if self.macro_engine is not None:
-                        self.macro_engine.check_combo(cid, tuple())
-
-                    if self.listen_armed and self._listen_controller == cid:
+            for logical_id in range(self.max_controllers):
+                physical_id = self._logical_to_physical.get(logical_id)
+                if physical_id is None or physical_id not in physical_states:
+                    was_connected = self.connected.get(logical_id, False)
+                    self.connected[logical_id] = False
+                    self.latest[logical_id] = None
+                    if self.pressed.get(logical_id, tuple()):
+                        self.pressed[logical_id] = tuple()
+                    if was_connected and self.macro_engine is not None:
+                        self.macro_engine.check_combo(logical_id, tuple())
+                    if self.listen_armed and self._listen_controller == logical_id:
                         self.cancel_listen()
                     continue
 
-                self.connected[cid] = True
-                self.latest[cid] = gp
+                gp = physical_states[physical_id]
+                self.connected[logical_id] = True
+                self.latest[logical_id] = gp
 
                 pressed_names = self._buttons_to_names(gp.wButtons)
-                self.pressed[cid] = pressed_names
-
-                if self.macro_engine is not None:
-                    self.macro_engine.check_combo(cid, pressed_names)
+                if pressed_names != self.pressed.get(logical_id, tuple()):
+                    self.pressed[logical_id] = pressed_names
+                    if self.macro_engine is not None:
+                        self.macro_engine.check_combo(logical_id, pressed_names)
 
             if self.listen_armed:
                 self._listen_tick()
@@ -229,7 +252,10 @@ class ControllerManager:
         return "xinput"
 
     def get_device_label(self, controller_id):
-        return f"XInput Controller {int(controller_id)}"
+        physical = self._logical_to_physical.get(int(controller_id))
+        if physical is None:
+            return f"XInput Controller {int(controller_id)}"
+        return f"XInput Controller {physical}"
 
     def get_gamepad(self, controller_id):
         return self.latest.get(controller_id)
@@ -239,7 +265,6 @@ class ControllerManager:
 
 
 def _cc__cm_start(self):
-    import threading
     if getattr(self, "_cc_thread", None) and getattr(self._cc_thread, "is_alive", lambda: False)():
         return
     t = threading.Thread(target=self.run, daemon=True)
