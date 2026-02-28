@@ -3,67 +3,6 @@ import time
 import threading
 from ctypes import wintypes
 
-try:
-    import pygame
-except Exception:
-    pygame = None
-
-
-JOY_RETURNX = 0x00000001
-JOY_RETURNY = 0x00000002
-JOY_RETURNZ = 0x00000004
-JOY_RETURNR = 0x00000008
-JOY_RETURNU = 0x00000010
-JOY_RETURNV = 0x00000020
-JOY_RETURNPOV = 0x00000040
-JOY_RETURNBUTTONS = 0x00000080
-JOY_RETURNALL = (
-    JOY_RETURNX
-    | JOY_RETURNY
-    | JOY_RETURNZ
-    | JOY_RETURNR
-    | JOY_RETURNU
-    | JOY_RETURNV
-    | JOY_RETURNPOV
-    | JOY_RETURNBUTTONS
-)
-JOY_POVCENTERED = 0xFFFF
-
-
-
-
-class JOYINFO(ctypes.Structure):
-    _fields_ = [
-        ("wXpos", wintypes.UINT),
-        ("wYpos", wintypes.UINT),
-        ("wZpos", wintypes.UINT),
-        ("wButtons", wintypes.UINT),
-    ]
-
-class JOYINFOEX(ctypes.Structure):
-    _fields_ = [
-        ("dwSize", wintypes.DWORD),
-        ("dwFlags", wintypes.DWORD),
-        ("dwXpos", wintypes.DWORD),
-        ("dwYpos", wintypes.DWORD),
-        ("dwZpos", wintypes.DWORD),
-        ("dwRpos", wintypes.DWORD),
-        ("dwUpos", wintypes.DWORD),
-        ("dwVpos", wintypes.DWORD),
-        ("dwButtons", wintypes.DWORD),
-        ("dwButtonNumber", wintypes.DWORD),
-        ("dwPOV", wintypes.DWORD),
-        ("dwReserved1", wintypes.DWORD),
-        ("dwReserved2", wintypes.DWORD),
-    ]
-
-
-def _load_winmm():
-    try:
-        return ctypes.WinDLL("winmm.dll")
-    except Exception:
-        return None
-
 
 def _load_xinput():
     for dll_name in ("xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"):
@@ -75,7 +14,6 @@ def _load_xinput():
 
 
 XINPUT = _load_xinput()
-WINMM = _load_winmm()
 
 
 class XINPUT_GAMEPAD(ctypes.Structure):
@@ -108,17 +46,8 @@ if XINPUT is not None:
     XINPUT.XInputGetState.argtypes = [wintypes.DWORD, ctypes.POINTER(XINPUT_STATE)]
     XINPUT.XInputGetState.restype = wintypes.DWORD
 
-    # XInputSetState returns DWORD error code (0 = SUCCESS)
     XINPUT.XInputSetState.argtypes = [wintypes.DWORD, ctypes.POINTER(XINPUT_VIBRATION)]
     XINPUT.XInputSetState.restype = wintypes.DWORD
-
-if WINMM is not None:
-    WINMM.joyGetNumDevs.argtypes = []
-    WINMM.joyGetNumDevs.restype = wintypes.UINT
-    WINMM.joyGetPosEx.argtypes = [wintypes.UINT, ctypes.POINTER(JOYINFOEX)]
-    WINMM.joyGetPosEx.restype = wintypes.UINT
-    WINMM.joyGetPos.argtypes = [wintypes.UINT, ctypes.POINTER(JOYINFO)]
-    WINMM.joyGetPos.restype = wintypes.UINT
 
 
 BUTTON_MAP = {
@@ -138,56 +67,15 @@ BUTTON_MAP = {
     0x0008: "DPad Right",
 }
 
-PYGAME_BUTTON_MAP = {
-    0: "A",
-    1: "B",
-    2: "X",
-    3: "Y",
-    4: "LB",
-    5: "RB",
-    6: "Back",
-    7: "Start",
-    8: "LS",
-    9: "RS",
-}
-
-WINMM_BUTTON_MAP = {
-    # Common DirectInput/WinMM layout seen on many Bluetooth "6 axis 16 button" pads:
-    # 0:A 1:B 2:X 3:Y 4:Back 5:Start 6:LS 7:RS 8:LB 9:RB
-    0: "A",
-    1: "B",
-    2: "X",
-    3: "Y",
-    4: "Back",
-    5: "Start",
-    6: "LS",
-    7: "RS",
-    8: "LB",
-    9: "RB",
-}
-
-
-class GenericGamepadState:
-    def __init__(self):
-        self.dwPacketNumber = int(time.time() * 1000) & 0xFFFFFFFF
-        self.wButtons = 0
-        self.bLeftTrigger = 0
-        self.bRightTrigger = 0
-        self.sThumbLX = 0
-        self.sThumbLY = 0
-        self.sThumbRX = 0
-        self.sThumbRY = 0
-        self.generic_buttons = tuple()
-
 
 class ControllerManager:
     """
-    Polls up to 4 controllers across XInput and optional pygame devices.
+    Polls up to 4 XInput controllers.
     Stores latest states for UI, and sends combos to macro engine.
     Supports Listen Mode: press buttons (any order) + release -> captures FULL union combo
     from FIRST controller that presses.
 
-    Also provides vibration feedback via XInputSetState for XInput-backed slots.
+    Also provides vibration feedback via XInputSetState.
     """
 
     def __init__(self, macro_engine, max_controllers=4, poll_hz=100):
@@ -198,35 +86,15 @@ class ControllerManager:
         self.connected = {i: False for i in range(self.max_controllers)}
         self.latest = {i: None for i in range(self.max_controllers)}
         self.pressed = {i: tuple() for i in range(self.max_controllers)}
-        self.slot_backend = {i: None for i in range(self.max_controllers)}
-        self.slot_label = {i: None for i in range(self.max_controllers)}
 
-        self._source_slots = {}
-        self._slot_sources = {i: None for i in range(self.max_controllers)}
-        self._source_order = {}
-        self._order_counter = 0
-        self._slot_xinput = {i: None for i in range(self.max_controllers)}
-
-        self._pygame_ready = False
-        self._pygame_failed = False
-
-        self._xinput_seen = False
-        self._xinput_promote_until = 0.0
-        self._generic_seen = False
-        self._generic_promote_until = 0.0
-
-        # Listen mode state
         self.listen_armed = False
         self.listen_callback = None
         self._listen_controller = None
         self._listen_seen_any_press = False
         self._listen_union = set()
 
-        # Vibration cancel tokens per controller
         self._vib_tokens = {i: 0 for i in range(self.max_controllers)}
         self._vib_lock = threading.Lock()
-
-    # ---------------- Listen Mode ----------------
 
     def arm_listen(self, callback):
         self.listen_armed = True
@@ -270,8 +138,6 @@ class ControllerManager:
             if cb:
                 cb(cid, captured)
 
-    # ---------------- XInput polling ----------------
-
     def _get_state(self, controller_id):
         if XINPUT is None:
             return None
@@ -289,394 +155,6 @@ class ControllerManager:
         out.sort()
         return tuple(out)
 
-    def _ensure_pygame(self):
-        if self._pygame_ready or self._pygame_failed or pygame is None:
-            return
-        try:
-            pygame.init()
-            pygame.joystick.init()
-            self._pygame_ready = True
-        except Exception:
-            self._pygame_failed = True
-
-    def _axis_to_short(self, value):
-        v = max(-1.0, min(1.0, float(value)))
-        n = int(v * 32767)
-        if n < -32768:
-            n = -32768
-        if n > 32767:
-            n = 32767
-        return n
-
-    def _axis_to_trigger(self, value):
-        v = float(value)
-        # Some APIs provide [-1..1], others [0..1]
-        if v < 0.0:
-            v = (v + 1.0) / 2.0
-        v = max(0.0, min(1.0, v))
-        return int(v * 255)
-
-    def _axis_uint_to_short(self, value):
-        try:
-            raw = int(value)
-        except Exception:
-            raw = 32767
-        raw = max(0, min(65535, raw))
-        return raw - 32767
-
-    def _axis_uint_to_trigger(self, value):
-        try:
-            raw = int(value)
-        except Exception:
-            raw = 0
-        raw = max(0, min(65535, raw))
-        return int((raw / 65535.0) * 255.0)
-
-    def _get_pygame_sources(self):
-        out = {}
-        self._ensure_pygame()
-        if not self._pygame_ready:
-            return out
-
-        try:
-            pygame.event.pump()
-            count = pygame.joystick.get_count()
-        except Exception:
-            return out
-
-        for idx in range(count):
-            try:
-                js = pygame.joystick.Joystick(idx)
-                if not js.get_init():
-                    js.init()
-
-                inst_id = js.get_instance_id() if hasattr(js, "get_instance_id") else idx
-                key = ("pygame", int(inst_id))
-                state = GenericGamepadState()
-
-                num_axes = js.get_numaxes()
-                lx = js.get_axis(0) if num_axes > 0 else 0.0
-                ly = js.get_axis(1) if num_axes > 1 else 0.0
-                rx = js.get_axis(2) if num_axes > 2 else 0.0
-                ry = js.get_axis(3) if num_axes > 3 else 0.0
-                lt = js.get_axis(4) if num_axes > 4 else 0.0
-                rt = js.get_axis(5) if num_axes > 5 else 0.0
-
-                state.sThumbLX = self._axis_to_short(lx)
-                state.sThumbLY = self._axis_to_short(-ly)
-                state.sThumbRX = self._axis_to_short(rx)
-                state.sThumbRY = self._axis_to_short(-ry)
-                state.bLeftTrigger = self._axis_to_trigger(lt)
-                state.bRightTrigger = self._axis_to_trigger(rt)
-
-                pressed = set()
-                generic_buttons = set()
-                for b_idx, b_name in PYGAME_BUTTON_MAP.items():
-                    if b_idx < js.get_numbuttons() and js.get_button(b_idx):
-                        pressed.add(b_name)
-
-                for b_idx in range(min(16, js.get_numbuttons())):
-                    if js.get_button(b_idx):
-                        generic_buttons.add(b_idx + 1)
-
-                for h_idx in range(js.get_numhats()):
-                    hx, hy = js.get_hat(h_idx)
-                    if hy > 0:
-                        pressed.add("DPad Up")
-                    elif hy < 0:
-                        pressed.add("DPad Down")
-                    if hx < 0:
-                        pressed.add("DPad Left")
-                    elif hx > 0:
-                        pressed.add("DPad Right")
-
-                state.generic_buttons = tuple(sorted(generic_buttons))
-                out[key] = (state, tuple(sorted(pressed)), None, "pygame", str(js.get_name() or "Bluetooth Controller"))
-            except Exception:
-                continue
-
-        return out
-
-    def _pov_to_dpad(self, pov_value):
-        pressed = set()
-        try:
-            pov = int(pov_value)
-        except Exception:
-            return pressed
-        if pov == JOY_POVCENTERED:
-            return pressed
-
-        angle = (pov // 100) % 360
-        if angle >= 315 or angle <= 45:
-            pressed.add("DPad Up")
-        if 45 <= angle <= 135:
-            pressed.add("DPad Right")
-        if 135 <= angle <= 225:
-            pressed.add("DPad Down")
-        if 225 <= angle <= 315:
-            pressed.add("DPad Left")
-        return pressed
-
-    def _build_winmm_state_from_ex(self, info):
-        state = GenericGamepadState()
-        state.sThumbLX = self._axis_uint_to_short(info.dwXpos)
-        state.sThumbLY = -self._axis_uint_to_short(info.dwYpos)
-        # Typical WinMM axis layout on generic BT pads: X/Y = left stick, Z/R = right stick.
-        # U/V are often slider/trigger-like channels.
-        state.sThumbRX = self._axis_uint_to_short(info.dwZpos)
-        state.sThumbRY = -self._axis_uint_to_short(info.dwRpos)
-        state.bLeftTrigger = self._axis_uint_to_trigger(info.dwUpos)
-        state.bRightTrigger = self._axis_uint_to_trigger(info.dwVpos)
-
-        pressed = set()
-        buttons = int(info.dwButtons)
-        generic_buttons = set()
-        for b_idx in range(16):
-            if buttons & (1 << b_idx):
-                generic_buttons.add(b_idx + 1)
-        for b_idx, b_name in WINMM_BUTTON_MAP.items():
-            if buttons & (1 << b_idx):
-                pressed.add(b_name)
-        pressed.update(self._pov_to_dpad(info.dwPOV))
-        state.generic_buttons = tuple(sorted(generic_buttons))
-        return state, tuple(sorted(pressed))
-
-    def _build_winmm_state_from_basic(self, info):
-        state = GenericGamepadState()
-        state.sThumbLX = self._axis_uint_to_short(info.wXpos)
-        state.sThumbLY = -self._axis_uint_to_short(info.wYpos)
-        state.bLeftTrigger = self._axis_uint_to_trigger(info.wZpos)
-
-        pressed = set()
-        buttons = int(info.wButtons)
-        generic_buttons = set()
-        for b_idx in range(16):
-            if buttons & (1 << b_idx):
-                generic_buttons.add(b_idx + 1)
-        for b_idx, b_name in WINMM_BUTTON_MAP.items():
-            if buttons & (1 << b_idx):
-                pressed.add(b_name)
-        state.generic_buttons = tuple(sorted(generic_buttons))
-        return state, tuple(sorted(pressed))
-
-    def _get_winmm_sources(self):
-        out = {}
-        if WINMM is None:
-            return out
-
-        try:
-            count = int(WINMM.joyGetNumDevs())
-        except Exception:
-            return out
-
-        for jid in range(count):
-            try:
-                key = ("winmm", int(jid))
-                info_ex = JOYINFOEX()
-                info_ex.dwSize = ctypes.sizeof(JOYINFOEX)
-                info_ex.dwFlags = JOY_RETURNALL
-                res_ex = WINMM.joyGetPosEx(jid, ctypes.byref(info_ex))
-
-                if res_ex == 0:
-                    state, pressed = self._build_winmm_state_from_ex(info_ex)
-                    out[key] = (state, pressed, None, "winmm", f"Bluetooth/DirectInput #{jid}")
-                    continue
-
-                # Fallback for devices/drivers that don't support joyGetPosEx reliably.
-                info_basic = JOYINFO()
-                res_basic = WINMM.joyGetPos(jid, ctypes.byref(info_basic))
-                if res_basic != 0:
-                    continue
-
-                state, pressed = self._build_winmm_state_from_basic(info_basic)
-                out[key] = (state, pressed, None, "winmm", f"Bluetooth/DirectInput #{jid}")
-            except Exception:
-                continue
-
-        return out
-
-    def _source_has_activity(self, gp, pressed_names):
-        if pressed_names:
-            return True
-        buttons = getattr(gp, "generic_buttons", tuple()) or tuple()
-        if buttons:
-            return True
-        try:
-            axes = [
-                abs(int(getattr(gp, "sThumbLX", 0))),
-                abs(int(getattr(gp, "sThumbLY", 0))),
-                abs(int(getattr(gp, "sThumbRX", 0))),
-                abs(int(getattr(gp, "sThumbRY", 0))),
-                int(getattr(gp, "bLeftTrigger", 0)),
-                int(getattr(gp, "bRightTrigger", 0)),
-            ]
-        except Exception:
-            return False
-        # deadzone-ish thresholds to avoid noisy drift
-        return (
-            axes[0] > 2500
-            or axes[1] > 2500
-            or axes[2] > 2500
-            or axes[3] > 2500
-            or axes[4] > 20
-            or axes[5] > 20
-        )
-
-    def _state_signature(self, gp, pressed_names):
-        names = tuple(sorted(str(x) for x in (pressed_names or tuple())))
-        try:
-            lx = int(getattr(gp, "sThumbLX", 0)) // 3000
-            ly = int(getattr(gp, "sThumbLY", 0)) // 3000
-            rx = int(getattr(gp, "sThumbRX", 0)) // 3000
-            ry = int(getattr(gp, "sThumbRY", 0)) // 3000
-            lt = int(getattr(gp, "bLeftTrigger", 0)) // 20
-            rt = int(getattr(gp, "bRightTrigger", 0)) // 20
-        except Exception:
-            lx = ly = rx = ry = lt = rt = 0
-        return (names, lx, ly, rx, ry, lt, rt)
-
-    def _looks_like_mirrored_source(self, generic_item, xinput_items):
-        gp_g, pressed_g, *_ = generic_item
-        if not self._source_has_activity(gp_g, pressed_g):
-            return False
-        sig_g = self._state_signature(gp_g, pressed_g)
-
-        for item in xinput_items:
-            gp_x, pressed_x, *_ = item
-            if not self._source_has_activity(gp_x, pressed_x):
-                continue
-            if self._state_signature(gp_x, pressed_x) == sig_g:
-                return True
-        return False
-
-    def _get_all_sources(self):
-        sources = {}
-        xinput_sources = {}
-
-        for xcid in range(self.max_controllers):
-            gp = self._get_state(xcid)
-            if gp is None:
-                continue
-            key = ("xinput", xcid)
-            xinput_sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput", f"XInput Controller {xcid}")
-
-        pygame_sources = self._get_pygame_sources()
-        winmm_sources = self._get_winmm_sources()
-        generic_sources = {}
-        generic_sources.update(pygame_sources)
-        generic_sources.update(winmm_sources)
-
-        now = time.time()
-        has_xinput = len(xinput_sources) > 0
-        has_generic = len(generic_sources) > 0
-
-        if has_xinput and not self._xinput_seen:
-            self._xinput_promote_until = now + 3.0
-        if has_generic and not self._generic_seen:
-            self._generic_promote_until = now + 3.0
-        self._xinput_seen = has_xinput
-        self._generic_seen = has_generic
-
-        active_xinput = [v for v in xinput_sources.values() if self._source_has_activity(v[0], v[1])]
-        active_generic = [v for v in generic_sources.values() if self._source_has_activity(v[0], v[1])]
-
-        # On generic takeover (e.g. XInput -> Bluetooth), suppress stale idle XInput endpoints briefly.
-        for key, value in xinput_sources.items():
-            gp, pressed_names, *_ = value
-            if now < self._generic_promote_until and active_generic and not self._source_has_activity(gp, pressed_names):
-                continue
-            sources[key] = value
-
-        # Add generic sources with stale/duplicate filtering.
-        for key, value in generic_sources.items():
-            gp, pressed_names, *_ = value
-            # On XInput takeover (e.g. Bluetooth -> 2.4G XInput), suppress stale idle generic endpoints briefly.
-            if now < self._xinput_promote_until and active_xinput and not self._source_has_activity(gp, pressed_names):
-                continue
-            # If generic endpoint mirrors active XInput state, treat it as duplicate view of same device.
-            if self._looks_like_mirrored_source(value, active_xinput):
-                continue
-            sources[key] = value
-
-        # Trim to logical capacity in first-seen order.
-        if len(sources) > self.max_controllers:
-            ordered = sorted(sources.items(), key=lambda kv: self._source_order.get(kv[0], 10**9))
-            sources = dict(ordered[:self.max_controllers])
-
-        return sources
-
-    def _sync_slots(self, sources):
-        active_keys = set(sources.keys())
-
-        # Clear any slots that are no longer active.
-        for slot in range(self.max_controllers):
-            key = self._slot_sources.get(slot)
-            if key is not None and key not in active_keys:
-                self._slot_sources[slot] = None
-                self.connected[slot] = False
-                self.latest[slot] = None
-                self.pressed[slot] = tuple()
-                self.slot_backend[slot] = None
-                self.slot_label[slot] = None
-                self._slot_xinput[slot] = None
-                if self.macro_engine is not None:
-                    self.macro_engine.check_combo(slot, tuple())
-                if self.listen_armed and self._listen_controller == slot:
-                    self.cancel_listen()
-
-        for key in sources.keys():
-            if key not in self._source_order:
-                self._order_counter += 1
-                self._source_order[key] = self._order_counter
-
-        # Rebuild slot assignment every tick so backend changes reflow cleanly.
-        # Priority: XInput first, then first-seen order.
-        ordered_keys = sorted(
-            active_keys,
-            key=lambda k: (
-                0 if str(k[0]).lower() == "xinput" else 1,
-                self._source_order.get(k, 10**9),
-            ),
-        )
-
-        self._slot_sources = {i: None for i in range(self.max_controllers)}
-        self._source_slots = {}
-        for slot, key in enumerate(ordered_keys[:self.max_controllers]):
-            self._slot_sources[slot] = key
-            self._source_slots[key] = slot
-
-        # Reset trailing slots
-        for slot in range(len(ordered_keys), self.max_controllers):
-            self.connected[slot] = False
-            self.latest[slot] = None
-            self.pressed[slot] = tuple()
-            self.slot_backend[slot] = None
-            self.slot_label[slot] = None
-            self._slot_xinput[slot] = None
-            if self.listen_armed and self._listen_controller == slot:
-                self.cancel_listen()
-
-        for slot in range(self.max_controllers):
-            key = self._slot_sources.get(slot)
-            if key is None or key not in sources:
-                continue
-            gp, pressed_names, xinput_id, backend, label = sources[key]
-            if backend != "xinput" and hasattr(gp, "generic_buttons"):
-                dpad_names = [n for n in pressed_names if str(n).startswith("DPad ")]
-                number_names = [str(n) for n in getattr(gp, "generic_buttons", tuple())]
-                pressed_names = tuple(sorted(set(dpad_names + number_names)))
-
-            self.connected[slot] = True
-            self.latest[slot] = gp
-            self.pressed[slot] = pressed_names
-            self.slot_backend[slot] = backend
-            self.slot_label[slot] = label
-            self._slot_xinput[slot] = xinput_id
-            if self.macro_engine is not None:
-                self.macro_engine.check_combo(slot, pressed_names)
-
-    # ---------------- Vibration ----------------
-
     def _set_vibration(self, controller_id, left_speed, right_speed):
         if XINPUT is None:
             return 1
@@ -686,18 +164,10 @@ class ControllerManager:
         return XINPUT.XInputSetState(controller_id, ctypes.byref(vib))
 
     def vibrate(self, controller_id, left=32000, right=32000, duration_ms=120):
-        """
-        Non-blocking vibration. Cancels any previous vibration on the same controller.
-        """
         cid = int(controller_id)
         if cid < 0 or cid >= self.max_controllers:
             return
-
-        # If not connected or not an XInput-backed slot, do nothing
         if not self.connected.get(cid, False):
-            return
-        xinput_cid = self._slot_xinput.get(cid)
-        if xinput_cid is None:
             return
 
         with self._vib_lock:
@@ -705,47 +175,61 @@ class ControllerManager:
             token = self._vib_tokens[cid]
 
         def _worker():
-            # Start
-            self._set_vibration(xinput_cid, left, right)
+            self._set_vibration(cid, left, right)
             end_t = time.time() + (max(0, int(duration_ms)) / 1000.0)
 
-            # Allow cancellation during the vibration
             while time.time() < end_t:
                 with self._vib_lock:
                     if self._vib_tokens[cid] != token:
                         break
                 time.sleep(0.01)
 
-            # Stop only if still current
             with self._vib_lock:
                 still_current = (self._vib_tokens[cid] == token)
             if still_current:
-                self._set_vibration(xinput_cid, 0, 0)
+                self._set_vibration(cid, 0, 0)
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    # ---------------- Main Loop ----------------
-
     def run(self):
         while True:
-            sources = self._get_all_sources()
-            self._sync_slots(sources)
+            for cid in range(self.max_controllers):
+                gp = self._get_state(cid)
+
+                if gp is None:
+                    self.connected[cid] = False
+                    self.latest[cid] = None
+                    self.pressed[cid] = tuple()
+
+                    if self.macro_engine is not None:
+                        self.macro_engine.check_combo(cid, tuple())
+
+                    if self.listen_armed and self._listen_controller == cid:
+                        self.cancel_listen()
+                    continue
+
+                self.connected[cid] = True
+                self.latest[cid] = gp
+
+                pressed_names = self._buttons_to_names(gp.wButtons)
+                self.pressed[cid] = pressed_names
+
+                if self.macro_engine is not None:
+                    self.macro_engine.check_combo(cid, pressed_names)
 
             if self.listen_armed:
                 self._listen_tick()
 
             time.sleep(self.sleep_s)
 
-    # ---------------- UI helpers ----------------
-
     def get_connected_ids(self):
         return [cid for cid in range(self.max_controllers) if self.connected.get(cid)]
 
-    def get_backend(self, controller_id):
-        return self.slot_backend.get(controller_id)
+    def get_backend(self, _controller_id):
+        return "xinput"
 
     def get_device_label(self, controller_id):
-        return self.slot_label.get(controller_id)
+        return f"XInput Controller {int(controller_id)}"
 
     def get_gamepad(self, controller_id):
         return self.latest.get(controller_id)
@@ -754,7 +238,6 @@ class ControllerManager:
         return self.pressed.get(controller_id, tuple())
 
 
-# ---- Patch: non-blocking start() for UI friendliness ----
 def _cc__cm_start(self):
     import threading
     if getattr(self, "_cc_thread", None) and getattr(self._cc_thread, "is_alive", lambda: False)():
@@ -763,7 +246,7 @@ def _cc__cm_start(self):
     self._cc_thread = t
     t.start()
 
-# Attach if missing
+
 if not hasattr(ControllerManager, "start"):
     ControllerManager.start = _cc__cm_start
 if not hasattr(ControllerManager, "start_polling"):

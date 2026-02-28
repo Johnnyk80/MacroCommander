@@ -379,13 +379,9 @@ class ControllerMonitor(ttk.LabelFrame):
     def update_view(self):
         cid = self.selected_controller.get()
         connected = cid in self.cm.get_connected_ids()
-        backend = (self.cm.get_backend(cid) or "xinput").lower()
-        label = self.cm.get_device_label(cid) or ("XInput" if backend == "xinput" else backend.title())
 
         self._set_metric("index", str(cid))
-        self._set_metric("mapping", backend)
-
-        show_generic = backend != "xinput"
+        self._set_metric("mapping", "xinput")
 
         self.bluetooth_frame.pack_forget()
         self.xinput_frame.pack_forget()
@@ -414,22 +410,10 @@ class ControllerMonitor(ttk.LabelFrame):
         gp = self.cm.get_gamepad(cid)
         pressed = set(self.cm.get_pressed_combo(cid))
 
-        self.status_label.config(text=f"Status: Controller {cid} connected ({label})")
+        self.status_label.config(text=f"Status: Controller {cid} connected (XInput Controller {cid})")
         self._set_metric("connected", "Yes")
-        self._set_metric("mapping", backend)
+        self._set_metric("mapping", "xinput")
         self._set_metric("timestamp", f"{getattr(gp, 'dwPacketNumber', 0)}")
-
-        if show_generic:
-            self.bluetooth_frame.pack(fill="both", expand=True, padx=20, pady=16)
-            self.bt_title.config(text=f"Bluetooth / Generic Controller - {label}")
-            self._set_xy_dot(getattr(gp, 'sThumbLX', 0), getattr(gp, 'sThumbLY', 0))
-            self._set_signed_axis_bar(self.bt_z_canvas, self.bt_z_bar, getattr(gp, 'sThumbRX', 0))
-            self._set_signed_axis_bar(self.bt_r_canvas, self.bt_r_bar, getattr(gp, 'sThumbRY', 0))
-            self._set_pov(pressed)
-            generic = set(getattr(gp, 'generic_buttons', tuple()) or tuple())
-            for i in range(1, 17):
-                self._set_generic_button(i, i in generic)
-            return
 
         self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
         for name, lbl in self.button_labels.items():
