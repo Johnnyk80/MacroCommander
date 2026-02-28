@@ -138,8 +138,27 @@ class MacroEngine:
                 m["hold_seconds"] = 0.0
 
             self._normalize_steps(m)
+            m["allowed_controllers"] = self._normalize_allowed_controllers(m.get("allowed_controllers", None))
 
         self.save()
+
+    def _normalize_allowed_controllers(self, allowed):
+        if allowed is None:
+            return [0, 1, 2, 3]
+
+        if not isinstance(allowed, (list, tuple, set)):
+            return [0, 1, 2, 3]
+
+        cleaned = []
+        for v in allowed:
+            try:
+                cid = int(v)
+            except Exception:
+                continue
+            if 0 <= cid <= 3 and cid not in cleaned:
+                cleaned.append(cid)
+
+        return sorted(cleaned) if cleaned else [0, 1, 2, 3]
 
     def _next_id(self):
         return (max([m["id"] for m in self.macros], default=0) + 1)
@@ -149,7 +168,7 @@ class MacroEngine:
 
     # -------- CRUD --------
 
-    def add_macro(self, combo, hold_seconds, active=True, steps=None):
+    def add_macro(self, combo, hold_seconds, active=True, steps=None, allowed_controllers=None):
         combo_t = self._normalize_combo(combo)
 
         try:
@@ -165,6 +184,7 @@ class MacroEngine:
             "active": bool(active),
             "hold_seconds": hold_seconds,
             "steps": steps if isinstance(steps, list) else [],
+            "allowed_controllers": self._normalize_allowed_controllers(allowed_controllers),
         }
         self._normalize_steps(macro)
 
@@ -185,6 +205,7 @@ class MacroEngine:
                     s.append(("run", st.get("action_id", ""), freeze(st.get("params", {}) or {})))
             return (tuple(self._normalize_combo(m.get("combo", []))),
                     float(m.get("hold_seconds", 0.0)),
+                    tuple(self._normalize_allowed_controllers(m.get("allowed_controllers", None))),
                     tuple(s))
 
         new_sig = sig(macro)
@@ -213,7 +234,7 @@ class MacroEngine:
                 return m
         return None
 
-    def update_macro(self, macro_id, combo, hold_seconds, active, steps):
+    def update_macro(self, macro_id, combo, hold_seconds, active, steps, allowed_controllers=None):
         m = self.get_macro_by_id(macro_id)
         if not m:
             return False
@@ -233,6 +254,7 @@ class MacroEngine:
             "active": bool(active),
             "hold_seconds": hold_s,
             "steps": steps if isinstance(steps, list) else [],
+            "allowed_controllers": self._normalize_allowed_controllers(allowed_controllers),
         }
         self._normalize_steps(candidate)
 
@@ -252,6 +274,7 @@ class MacroEngine:
                     s.append(("run", st.get("action_id", ""), freeze(st.get("params", {}) or {})))
             return (tuple(self._normalize_combo(m2.get("combo", []))),
                     float(m2.get("hold_seconds", 0.0)),
+                    tuple(self._normalize_allowed_controllers(m2.get("allowed_controllers", None))),
                     tuple(s))
 
         cand_sig = sig(candidate)
@@ -265,6 +288,7 @@ class MacroEngine:
         m["active"] = candidate["active"]
         m["hold_seconds"] = candidate["hold_seconds"]
         m["steps"] = candidate["steps"]
+        m["allowed_controllers"] = candidate["allowed_controllers"]
         self._normalize_steps(m)
 
         self.save()
@@ -325,6 +349,8 @@ class MacroEngine:
             if not m.get("active", True):
                 continue
             if self._normalize_combo(m.get("combo", [])) != combo:
+                continue
+            if controller_id not in self._normalize_allowed_controllers(m.get("allowed_controllers", None)):
                 continue
 
             mid = m.get("id")

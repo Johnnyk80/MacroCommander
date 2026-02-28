@@ -332,18 +332,20 @@ class MacroPanel(ttk.LabelFrame):
 
         self.tree = ttk.Treeview(
             self.tree_container,
-            columns=("Combo", "Hold", "Steps", "Active"),
+            columns=("Combo", "Controllers", "Hold", "Steps", "Active"),
             show="headings",
             height=6
         )
         self.tree.heading("Combo", text="Combo")
+        self.tree.heading("Controllers", text="Controllers")
         self.tree.heading("Hold", text="Hold")
         self.tree.heading("Steps", text="Steps")
         self.tree.heading("Active", text="Active")
 
-        self.tree.column("Combo", width=200, stretch=False)
+        self.tree.column("Combo", width=180, stretch=False)
+        self.tree.column("Controllers", width=180, stretch=False)
         self.tree.column("Hold", width=70, stretch=False)
-        self.tree.column("Steps", width=360, stretch=True)
+        self.tree.column("Steps", width=300, stretch=True)
         self.tree.column("Active", width=70, stretch=False)
 
         self.vscroll = ttk.Scrollbar(self.tree_container, orient="vertical", command=self.tree.yview)
@@ -374,6 +376,11 @@ class MacroPanel(ttk.LabelFrame):
             combo_str = " + ".join(m.get("combo", []))
             hold = float(m.get("hold_seconds", 0.0))
             active_txt = "✔" if bool(m.get("active", True)) else "✘"
+            allowed = m.get("allowed_controllers", [0, 1, 2, 3])
+            if sorted(allowed) == [0, 1, 2, 3]:
+                controllers_txt = "All (1-4)"
+            else:
+                controllers_txt = ", ".join(f"C{int(c)+1}" for c in allowed)
 
             steps = m.get("steps", [])
             if not isinstance(steps, list):
@@ -389,7 +396,7 @@ class MacroPanel(ttk.LabelFrame):
             steps_summary = "  →  ".join(parts) if parts else "(no steps)"
 
             mid = m.get("id")
-            self.tree.insert("", "end", iid=str(mid), values=(combo_str, hold, steps_summary, active_txt))
+            self.tree.insert("", "end", iid=str(mid), values=(combo_str, controllers_txt, hold, steps_summary, active_txt))
 
     def _get_selected_macro_id(self):
         sel = self.tree.selection()
@@ -854,6 +861,34 @@ class MacroPanel(ttk.LabelFrame):
         ttk.Entry(top, textvariable=hold_var, width=10).grid(row=1, column=1, sticky="w", padx=10, pady=(10, 0))
         ttk.Checkbutton(top, text="Active", variable=active_var).grid(row=1, column=2, sticky="w", padx=10, pady=(10, 0))
 
+        selector = ttk.LabelFrame(dlg, text="Allowed Controllers", padding=10)
+        selector.pack(fill="x", padx=12, pady=(0, 12))
+
+        controller_vars = []
+        labels = ["Controller 1", "Controller 2", "Controller 3", "Controller 4"]
+        initial_allowed = [0, 1, 2, 3]
+        if mode == "edit" and macro:
+            initial_allowed = macro.get("allowed_controllers", [0, 1, 2, 3])
+
+        for i, label in enumerate(labels):
+            var = tk.BooleanVar(value=(i in initial_allowed))
+            controller_vars.append(var)
+            ttk.Checkbutton(selector, text=label, variable=var).grid(row=0, column=i, sticky="w", padx=(0, 14))
+
+        all_var = tk.BooleanVar(value=all(v.get() for v in controller_vars))
+
+        def apply_all():
+            checked = all_var.get()
+            for var in controller_vars:
+                var.set(checked)
+
+        def refresh_all():
+            all_var.set(all(v.get() for v in controller_vars))
+
+        ttk.Checkbutton(selector, text="All Controllers", variable=all_var, command=apply_all).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        for var in controller_vars:
+            var.trace_add("write", lambda *_: refresh_all())
+
         steps_frame = ttk.LabelFrame(dlg, text="Steps (executed in order)")
         steps_frame.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
@@ -998,13 +1033,18 @@ class MacroPanel(ttk.LabelFrame):
                     messagebox.showerror("Invalid Step", f"Step {i}: {err}")
                     return
 
+            allowed_controllers = [i for i, var in enumerate(controller_vars) if var.get()]
+            if not allowed_controllers:
+                messagebox.showerror("Missing Controllers", "Select at least one controller that can run this macro.")
+                return
+
             if mode == "add":
-                self.engine.add_macro(combo=combo, hold_seconds=hold_s, active=active_var.get(), steps=steps)
+                self.engine.add_macro(combo=combo, hold_seconds=hold_s, active=active_var.get(), steps=steps, allowed_controllers=allowed_controllers)
                 self.refresh()
                 dlg.destroy()
                 return
 
-            ok = self.engine.update_macro(macro_id=macro_id, combo=combo, hold_seconds=hold_s, active=active_var.get(), steps=steps)
+            ok = self.engine.update_macro(macro_id=macro_id, combo=combo, hold_seconds=hold_s, active=active_var.get(), steps=steps, allowed_controllers=allowed_controllers)
             if not ok:
                 messagebox.showerror("Edit Macro", "That change would create a duplicate macro.")
                 return
