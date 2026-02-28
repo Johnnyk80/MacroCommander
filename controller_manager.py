@@ -30,6 +30,16 @@ JOY_RETURNALL = (
 JOY_POVCENTERED = 0xFFFF
 
 
+
+
+class JOYINFO(ctypes.Structure):
+    _fields_ = [
+        ("wXpos", wintypes.UINT),
+        ("wYpos", wintypes.UINT),
+        ("wZpos", wintypes.UINT),
+        ("wButtons", wintypes.UINT),
+    ]
+
 class JOYINFOEX(ctypes.Structure):
     _fields_ = [
         ("dwSize", wintypes.DWORD),
@@ -107,6 +117,8 @@ if WINMM is not None:
     WINMM.joyGetNumDevs.restype = wintypes.UINT
     WINMM.joyGetPosEx.argtypes = [wintypes.UINT, ctypes.POINTER(JOYINFOEX)]
     WINMM.joyGetPosEx.restype = wintypes.UINT
+    WINMM.joyGetPos.argtypes = [wintypes.UINT, ctypes.POINTER(JOYINFO)]
+    WINMM.joyGetPos.restype = wintypes.UINT
 
 
 BUTTON_MAP = {
@@ -390,6 +402,36 @@ class ControllerManager:
             pressed.add("DPad Left")
         return pressed
 
+    def _build_winmm_state_from_ex(self, info):
+        state = GenericGamepadState()
+        state.sThumbLX = self._axis_uint_to_short(info.dwXpos)
+        state.sThumbLY = -self._axis_uint_to_short(info.dwYpos)
+        state.sThumbRX = self._axis_uint_to_short(info.dwRpos)
+        state.sThumbRY = -self._axis_uint_to_short(info.dwUpos)
+        state.bLeftTrigger = self._axis_uint_to_trigger(info.dwZpos)
+        state.bRightTrigger = self._axis_uint_to_trigger(info.dwVpos)
+
+        pressed = set()
+        buttons = int(info.dwButtons)
+        for b_idx, b_name in WINMM_BUTTON_MAP.items():
+            if buttons & (1 << b_idx):
+                pressed.add(b_name)
+        pressed.update(self._pov_to_dpad(info.dwPOV))
+        return state, tuple(sorted(pressed))
+
+    def _build_winmm_state_from_basic(self, info):
+        state = GenericGamepadState()
+        state.sThumbLX = self._axis_uint_to_short(info.wXpos)
+        state.sThumbLY = -self._axis_uint_to_short(info.wYpos)
+        state.bLeftTrigger = self._axis_uint_to_trigger(info.wZpos)
+
+        pressed = set()
+        buttons = int(info.wButtons)
+        for b_idx, b_name in WINMM_BUTTON_MAP.items():
+            if buttons & (1 << b_idx):
+                pressed.add(b_name)
+        return state, tuple(sorted(pressed))
+
     def _get_winmm_sources(self):
         out = {}
         if WINMM is None:
@@ -402,30 +444,25 @@ class ControllerManager:
 
         for jid in range(count):
             try:
-                info = JOYINFOEX()
-                info.dwSize = ctypes.sizeof(JOYINFOEX)
-                info.dwFlags = JOY_RETURNALL
-                res = WINMM.joyGetPosEx(jid, ctypes.byref(info))
-                if res != 0:
+                key = ("winmm", int(jid))
+                info_ex = JOYINFOEX()
+                info_ex.dwSize = ctypes.sizeof(JOYINFOEX)
+                info_ex.dwFlags = JOY_RETURNALL
+                res_ex = WINMM.joyGetPosEx(jid, ctypes.byref(info_ex))
+
+                if res_ex == 0:
+                    state, pressed = self._build_winmm_state_from_ex(info_ex)
+                    out[key] = (state, pressed, None, "winmm")
                     continue
 
-                key = ("winmm", int(jid))
-                state = GenericGamepadState()
-                state.sThumbLX = self._axis_uint_to_short(info.dwXpos)
-                state.sThumbLY = -self._axis_uint_to_short(info.dwYpos)
-                state.sThumbRX = self._axis_uint_to_short(info.dwRpos)
-                state.sThumbRY = -self._axis_uint_to_short(info.dwUpos)
-                state.bLeftTrigger = self._axis_uint_to_trigger(info.dwZpos)
-                state.bRightTrigger = self._axis_uint_to_trigger(info.dwVpos)
+                # Fallback for devices/drivers that don't support joyGetPosEx reliably.
+                info_basic = JOYINFO()
+                res_basic = WINMM.joyGetPos(jid, ctypes.byref(info_basic))
+                if res_basic != 0:
+                    continue
 
-                pressed = set()
-                buttons = int(info.dwButtons)
-                for b_idx, b_name in WINMM_BUTTON_MAP.items():
-                    if buttons & (1 << b_idx):
-                        pressed.add(b_name)
-
-                pressed.update(self._pov_to_dpad(info.dwPOV))
-                out[key] = (state, tuple(sorted(pressed)), None, "winmm")
+                state, pressed = self._build_winmm_state_from_basic(info_basic)
+                out[key] = (state, pressed, None, "winmm")
             except Exception:
                 continue
 
