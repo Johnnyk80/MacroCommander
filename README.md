@@ -13,7 +13,7 @@ Multi-controller support with selectable active device
 
 Live connection status updates
 
-Hybrid input assignment: fills controller slots 0–3 by first-connected order across XInput and Bluetooth/other pygame-detected devices
+Hybrid input assignment: fills controller slots 0–3 by first-connected order across XInput and Bluetooth/other controllers (pygame + WinMM fallback)
 
 ⚙️ Macro System
 

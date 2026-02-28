@@ -9,6 +9,52 @@ except Exception:
     pygame = None
 
 
+JOY_RETURNX = 0x00000001
+JOY_RETURNY = 0x00000002
+JOY_RETURNZ = 0x00000004
+JOY_RETURNR = 0x00000008
+JOY_RETURNU = 0x00000010
+JOY_RETURNV = 0x00000020
+JOY_RETURNPOV = 0x00000040
+JOY_RETURNBUTTONS = 0x00000080
+JOY_RETURNALL = (
+    JOY_RETURNX
+    | JOY_RETURNY
+    | JOY_RETURNZ
+    | JOY_RETURNR
+    | JOY_RETURNU
+    | JOY_RETURNV
+    | JOY_RETURNPOV
+    | JOY_RETURNBUTTONS
+)
+JOY_POVCENTERED = 0xFFFF
+
+
+class JOYINFOEX(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", wintypes.DWORD),
+        ("dwFlags", wintypes.DWORD),
+        ("dwXpos", wintypes.DWORD),
+        ("dwYpos", wintypes.DWORD),
+        ("dwZpos", wintypes.DWORD),
+        ("dwRpos", wintypes.DWORD),
+        ("dwUpos", wintypes.DWORD),
+        ("dwVpos", wintypes.DWORD),
+        ("dwButtons", wintypes.DWORD),
+        ("dwButtonNumber", wintypes.DWORD),
+        ("dwPOV", wintypes.DWORD),
+        ("dwReserved1", wintypes.DWORD),
+        ("dwReserved2", wintypes.DWORD),
+    ]
+
+
+def _load_winmm():
+    try:
+        return ctypes.WinDLL("winmm.dll")
+    except Exception:
+        return None
+
+
 def _load_xinput():
     for dll_name in ("xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"):
         try:
@@ -19,6 +65,7 @@ def _load_xinput():
 
 
 XINPUT = _load_xinput()
+WINMM = _load_winmm()
 
 
 class XINPUT_GAMEPAD(ctypes.Structure):
@@ -55,6 +102,12 @@ if XINPUT is not None:
     XINPUT.XInputSetState.argtypes = [wintypes.DWORD, ctypes.POINTER(XINPUT_VIBRATION)]
     XINPUT.XInputSetState.restype = wintypes.DWORD
 
+if WINMM is not None:
+    WINMM.joyGetNumDevs.argtypes = []
+    WINMM.joyGetNumDevs.restype = wintypes.UINT
+    WINMM.joyGetPosEx.argtypes = [wintypes.UINT, ctypes.POINTER(JOYINFOEX)]
+    WINMM.joyGetPosEx.restype = wintypes.UINT
+
 
 BUTTON_MAP = {
     0x1000: "A",
@@ -74,6 +127,19 @@ BUTTON_MAP = {
 }
 
 PYGAME_BUTTON_MAP = {
+    0: "A",
+    1: "B",
+    2: "X",
+    3: "Y",
+    4: "LB",
+    5: "RB",
+    6: "Back",
+    7: "Start",
+    8: "LS",
+    9: "RS",
+}
+
+WINMM_BUTTON_MAP = {
     0: "A",
     1: "B",
     2: "X",
@@ -229,6 +295,22 @@ class ControllerManager:
         v = max(0.0, min(1.0, v))
         return int(v * 255)
 
+    def _axis_uint_to_short(self, value):
+        try:
+            raw = int(value)
+        except Exception:
+            raw = 32767
+        raw = max(0, min(65535, raw))
+        return raw - 32767
+
+    def _axis_uint_to_trigger(self, value):
+        try:
+            raw = int(value)
+        except Exception:
+            raw = 0
+        raw = max(0, min(65535, raw))
+        return int((raw / 65535.0) * 255.0)
+
     def _get_pygame_sources(self):
         out = {}
         self._ensure_pygame()
@@ -288,6 +370,67 @@ class ControllerManager:
 
         return out
 
+    def _pov_to_dpad(self, pov_value):
+        pressed = set()
+        try:
+            pov = int(pov_value)
+        except Exception:
+            return pressed
+        if pov == JOY_POVCENTERED:
+            return pressed
+
+        angle = (pov // 100) % 360
+        if angle >= 315 or angle <= 45:
+            pressed.add("DPad Up")
+        if 45 <= angle <= 135:
+            pressed.add("DPad Right")
+        if 135 <= angle <= 225:
+            pressed.add("DPad Down")
+        if 225 <= angle <= 315:
+            pressed.add("DPad Left")
+        return pressed
+
+    def _get_winmm_sources(self):
+        out = {}
+        if WINMM is None:
+            return out
+
+        try:
+            count = int(WINMM.joyGetNumDevs())
+        except Exception:
+            return out
+
+        for jid in range(count):
+            try:
+                info = JOYINFOEX()
+                info.dwSize = ctypes.sizeof(JOYINFOEX)
+                info.dwFlags = JOY_RETURNALL
+                res = WINMM.joyGetPosEx(jid, ctypes.byref(info))
+                if res != 0:
+                    continue
+
+                key = ("winmm", int(jid))
+                state = GenericGamepadState()
+                state.sThumbLX = self._axis_uint_to_short(info.dwXpos)
+                state.sThumbLY = -self._axis_uint_to_short(info.dwYpos)
+                state.sThumbRX = self._axis_uint_to_short(info.dwRpos)
+                state.sThumbRY = -self._axis_uint_to_short(info.dwUpos)
+                state.bLeftTrigger = self._axis_uint_to_trigger(info.dwZpos)
+                state.bRightTrigger = self._axis_uint_to_trigger(info.dwVpos)
+
+                pressed = set()
+                buttons = int(info.dwButtons)
+                for b_idx, b_name in WINMM_BUTTON_MAP.items():
+                    if buttons & (1 << b_idx):
+                        pressed.add(b_name)
+
+                pressed.update(self._pov_to_dpad(info.dwPOV))
+                out[key] = (state, tuple(sorted(pressed)), None, "winmm")
+            except Exception:
+                continue
+
+        return out
+
     def _get_all_sources(self):
         sources = {}
 
@@ -298,7 +441,19 @@ class ControllerManager:
             key = ("xinput", xcid)
             sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput")
 
-        sources.update(self._get_pygame_sources())
+        pygame_sources = self._get_pygame_sources()
+        winmm_sources = self._get_winmm_sources()
+        sources.update(pygame_sources)
+
+        # Add winmm only when we have free logical space to avoid XInput duplication noise.
+        available_slots = max(0, self.max_controllers - len(sources))
+        if available_slots > 0:
+            for key, value in winmm_sources.items():
+                if key in sources:
+                    continue
+                sources[key] = value
+                if len(sources) >= self.max_controllers:
+                    break
         return sources
 
     def _sync_slots(self, sources):
