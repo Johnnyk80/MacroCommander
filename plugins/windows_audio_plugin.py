@@ -34,7 +34,7 @@ public static class AudioBridge
         var items = new List<string>();
         var e = (IMMDeviceEnumerator)(new MMDeviceEnumeratorComObject());
         IMMDeviceCollection coll;
-        Marshal.ThrowExceptionForHR(e.EnumAudioEndpoints(EDataFlow.eRender, DEVICE_STATE.ACTIVE, out coll));
+        Marshal.ThrowExceptionForHR(e.EnumAudioEndpoints((int)EDataFlow.eRender, DeviceState.ACTIVE, out coll));
 
         uint count;
         Marshal.ThrowExceptionForHR(coll.GetCount(out count));
@@ -108,20 +108,15 @@ public static class AudioBridge
 
     private enum EDataFlow
     {
-        eRender,
-        eCapture,
-        eAll,
-        EDataFlow_enum_count
+        eRender = 0,
+        eCapture = 1,
+        eAll = 2,
+        EDataFlow_enum_count = 3
     }
 
-    [Flags]
-    private enum DEVICE_STATE : uint
+    private static class DeviceState
     {
-        ACTIVE = 0x00000001,
-        DISABLED = 0x00000002,
-        NOTPRESENT = 0x00000004,
-        UNPLUGGED = 0x00000008,
-        MASK_ALL = 0x0000000F
+        public const uint ACTIVE = 0x00000001;
     }
 
     private enum ERole
@@ -170,8 +165,8 @@ public static class AudioBridge
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceEnumerator
     {
-        int EnumAudioEndpoints(EDataFlow dataFlow, DEVICE_STATE dwStateMask, out IMMDeviceCollection ppDevices);
-        int GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice ppEndpoint);
+        int EnumAudioEndpoints(int dataFlow, uint dwStateMask, [MarshalAs(UnmanagedType.Interface)] out IMMDeviceCollection ppDevices);
+        int GetDefaultAudioEndpoint(int dataFlow, int role, [MarshalAs(UnmanagedType.Interface)] out IMMDevice ppEndpoint);
         int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string pwstrId, out IMMDevice ppDevice);
         int RegisterEndpointNotificationCallback(IntPtr pClient);
         int UnregisterEndpointNotificationCallback(IntPtr pClient);
@@ -183,7 +178,7 @@ public static class AudioBridge
     private interface IMMDeviceCollection
     {
         int GetCount(out uint pcDevices);
-        int Item(uint nDevice, out IMMDevice ppDevice);
+        int Item(uint nDevice, [MarshalAs(UnmanagedType.Interface)] out IMMDevice ppDevice);
     }
 
     [ComImport]
