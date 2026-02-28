@@ -325,6 +325,19 @@ class ControllerMonitor(ttk.LabelFrame):
         dy = center + (ny * radius)
         canvas.coords(dot, dx - 5, dy - 5, dx + 5, dy + 5)
 
+    def _set_signed_axis_bar(self, canvas, bar, value):
+        try:
+            v = float(value) / STICK_MAX
+        except Exception:
+            v = 0.0
+        v = max(-1.0, min(1.0, v))
+        width = int(canvas.cget("width"))
+        center = width // 2
+        x = int(center + (center * v))
+        left = min(center, x)
+        right = max(center, x)
+        canvas.coords(bar, left, 0, right, 16)
+
     def _set_generic_button(self, number, pressed):
         item = self.bt_button_labels.get(number)
         if not item:
@@ -382,8 +395,8 @@ class ControllerMonitor(ttk.LabelFrame):
             self._set_stick(self.left_canvas, self.left_dot, 0, 0)
             self._set_stick(self.right_canvas, self.right_dot, 0, 0)
             self._set_xy_dot(0, 0)
-            self._set_bar(self.bt_z_canvas, self.bt_z_bar, 0)
-            self._set_bar(self.bt_r_canvas, self.bt_r_bar, 0)
+            self._set_signed_axis_bar(self.bt_z_canvas, self.bt_z_bar, 0)
+            self._set_signed_axis_bar(self.bt_r_canvas, self.bt_r_bar, 0)
             self._set_pov(set())
             for i in range(1, 17):
                 self._set_generic_button(i, False)
@@ -399,8 +412,8 @@ class ControllerMonitor(ttk.LabelFrame):
         if show_generic:
             self.bt_title.config(text=f"Bluetooth / Generic Controller - {label}")
             self._set_xy_dot(getattr(gp, 'sThumbLX', 0), getattr(gp, 'sThumbLY', 0))
-            self._set_bar(self.bt_z_canvas, self.bt_z_bar, getattr(gp, 'bLeftTrigger', 0))
-            self._set_bar(self.bt_r_canvas, self.bt_r_bar, getattr(gp, 'bRightTrigger', 0))
+            self._set_signed_axis_bar(self.bt_z_canvas, self.bt_z_bar, getattr(gp, 'sThumbRX', 0))
+            self._set_signed_axis_bar(self.bt_r_canvas, self.bt_r_bar, getattr(gp, 'sThumbRY', 0))
             self._set_pov(pressed)
             generic = set(getattr(gp, 'generic_buttons', tuple()) or tuple())
             for i in range(1, 17):

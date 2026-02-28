@@ -555,6 +555,11 @@ class ControllerManager:
             if key is None or key not in sources:
                 continue
             gp, pressed_names, xinput_id, backend, label = sources[key]
+            if backend != "xinput" and hasattr(gp, "generic_buttons"):
+                dpad_names = [n for n in pressed_names if str(n).startswith("DPad ")]
+                number_names = [str(n) for n in getattr(gp, "generic_buttons", tuple())]
+                pressed_names = tuple(sorted(set(dpad_names + number_names)))
+
             self.connected[slot] = True
             self.latest[slot] = gp
             self.pressed[slot] = pressed_names
