@@ -212,6 +212,8 @@ class ControllerManager:
 
         self._xinput_seen = False
         self._xinput_promote_until = 0.0
+        self._generic_seen = False
+        self._generic_promote_until = 0.0
 
         # Listen mode state
         self.listen_armed = False
@@ -520,6 +522,33 @@ class ControllerManager:
             or axes[5] > 20
         )
 
+    def _state_signature(self, gp, pressed_names):
+        names = tuple(sorted(str(x) for x in (pressed_names or tuple())))
+        try:
+            lx = int(getattr(gp, "sThumbLX", 0)) // 3000
+            ly = int(getattr(gp, "sThumbLY", 0)) // 3000
+            rx = int(getattr(gp, "sThumbRX", 0)) // 3000
+            ry = int(getattr(gp, "sThumbRY", 0)) // 3000
+            lt = int(getattr(gp, "bLeftTrigger", 0)) // 20
+            rt = int(getattr(gp, "bRightTrigger", 0)) // 20
+        except Exception:
+            lx = ly = rx = ry = lt = rt = 0
+        return (names, lx, ly, rx, ry, lt, rt)
+
+    def _looks_like_mirrored_source(self, generic_item, xinput_items):
+        gp_g, pressed_g, *_ = generic_item
+        if not self._source_has_activity(gp_g, pressed_g):
+            return False
+        sig_g = self._state_signature(gp_g, pressed_g)
+
+        for item in xinput_items:
+            gp_x, pressed_x, *_ = item
+            if not self._source_has_activity(gp_x, pressed_x):
+                continue
+            if self._state_signature(gp_x, pressed_x) == sig_g:
+                return True
+        return False
+
     def _get_all_sources(self):
         sources = {}
         xinput_sources = {}
@@ -531,37 +560,49 @@ class ControllerManager:
             key = ("xinput", xcid)
             xinput_sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput", f"XInput Controller {xcid}")
 
-        sources.update(xinput_sources)
-
-        has_xinput = len(xinput_sources) > 0
-        now = time.time()
-        if has_xinput and not self._xinput_seen:
-            # When a controller switches from BT/DirectInput to XInput mode,
-            # stale generic endpoints can linger briefly. Prefer XInput during this window.
-            self._xinput_promote_until = now + 4.0
-        self._xinput_seen = has_xinput
-
         pygame_sources = self._get_pygame_sources()
         winmm_sources = self._get_winmm_sources()
+        generic_sources = {}
+        generic_sources.update(pygame_sources)
+        generic_sources.update(winmm_sources)
 
-        for key, value in pygame_sources.items():
-            gp, pressed_names, xinput_id, backend, label = value
-            if now < self._xinput_promote_until and has_xinput and not self._source_has_activity(gp, pressed_names):
+        now = time.time()
+        has_xinput = len(xinput_sources) > 0
+        has_generic = len(generic_sources) > 0
+
+        if has_xinput and not self._xinput_seen:
+            self._xinput_promote_until = now + 3.0
+        if has_generic and not self._generic_seen:
+            self._generic_promote_until = now + 3.0
+        self._xinput_seen = has_xinput
+        self._generic_seen = has_generic
+
+        active_xinput = [v for v in xinput_sources.values() if self._source_has_activity(v[0], v[1])]
+        active_generic = [v for v in generic_sources.values() if self._source_has_activity(v[0], v[1])]
+
+        # On generic takeover (e.g. XInput -> Bluetooth), suppress stale idle XInput endpoints briefly.
+        for key, value in xinput_sources.items():
+            gp, pressed_names, *_ = value
+            if now < self._generic_promote_until and active_generic and not self._source_has_activity(gp, pressed_names):
                 continue
             sources[key] = value
 
-        # Add winmm only when we have free logical space to avoid XInput duplication noise.
-        available_slots = max(0, self.max_controllers - len(sources))
-        if available_slots > 0:
-            for key, value in winmm_sources.items():
-                if key in sources:
-                    continue
-                gp, pressed_names, xinput_id, backend, label = value
-                if now < self._xinput_promote_until and has_xinput and not self._source_has_activity(gp, pressed_names):
-                    continue
-                sources[key] = value
-                if len(sources) >= self.max_controllers:
-                    break
+        # Add generic sources with stale/duplicate filtering.
+        for key, value in generic_sources.items():
+            gp, pressed_names, *_ = value
+            # On XInput takeover (e.g. Bluetooth -> 2.4G XInput), suppress stale idle generic endpoints briefly.
+            if now < self._xinput_promote_until and active_xinput and not self._source_has_activity(gp, pressed_names):
+                continue
+            # If generic endpoint mirrors active XInput state, treat it as duplicate view of same device.
+            if self._looks_like_mirrored_source(value, active_xinput):
+                continue
+            sources[key] = value
+
+        # Trim to logical capacity in first-seen order.
+        if len(sources) > self.max_controllers:
+            ordered = sorted(sources.items(), key=lambda kv: self._source_order.get(kv[0], 10**9))
+            sources = dict(ordered[:self.max_controllers])
+
         return sources
 
     def _sync_slots(self, sources):
