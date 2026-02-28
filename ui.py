@@ -165,9 +165,9 @@ class ControllerMonitor(ttk.LabelFrame):
             highlightthickness=1,
             highlightbackground=self.palette["line"],
             width=880,
-            height=405,
+            height=470,
         )
-        body.pack(fill="both", expand=True, padx=8, pady=(4, 14))
+        body.pack(fill="both", expand=True, padx=8, pady=(4, 24))
         body.pack_propagate(False)
 
         xinput = tk.Frame(body, bg=self.palette["bg"])
@@ -970,7 +970,7 @@ class AppUI:
         top_container.pack(fill="x", padx=10, pady=10)
         # Keep the Controller Monitor tall even when its inner content is centered
         top_container.pack_propagate(False)
-        top_container.configure(height=500)
+        top_container.configure(height=580)
 
         self.monitor = ControllerMonitor(top_container, self.cm)
         self.monitor.pack(fill="both", expand=True)
