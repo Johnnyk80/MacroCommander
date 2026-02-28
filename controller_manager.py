@@ -177,6 +177,7 @@ class GenericGamepadState:
         self.sThumbLY = 0
         self.sThumbRX = 0
         self.sThumbRY = 0
+        self.generic_buttons = tuple()
 
 
 class ControllerManager:
@@ -198,6 +199,7 @@ class ControllerManager:
         self.latest = {i: None for i in range(self.max_controllers)}
         self.pressed = {i: tuple() for i in range(self.max_controllers)}
         self.slot_backend = {i: None for i in range(self.max_controllers)}
+        self.slot_label = {i: None for i in range(self.max_controllers)}
 
         self._source_slots = {}
         self._slot_sources = {i: None for i in range(self.max_controllers)}
@@ -363,9 +365,14 @@ class ControllerManager:
                 state.bRightTrigger = self._axis_to_trigger(rt)
 
                 pressed = set()
+                generic_buttons = set()
                 for b_idx, b_name in PYGAME_BUTTON_MAP.items():
                     if b_idx < js.get_numbuttons() and js.get_button(b_idx):
                         pressed.add(b_name)
+
+                for b_idx in range(min(16, js.get_numbuttons())):
+                    if js.get_button(b_idx):
+                        generic_buttons.add(b_idx + 1)
 
                 for h_idx in range(js.get_numhats()):
                     hx, hy = js.get_hat(h_idx)
@@ -378,7 +385,8 @@ class ControllerManager:
                     elif hx > 0:
                         pressed.add("DPad Right")
 
-                out[key] = (state, tuple(sorted(pressed)), None, "pygame")
+                state.generic_buttons = tuple(sorted(generic_buttons))
+                out[key] = (state, tuple(sorted(pressed)), None, "pygame", str(js.get_name() or "Bluetooth Controller"))
             except Exception:
                 continue
 
@@ -417,10 +425,15 @@ class ControllerManager:
 
         pressed = set()
         buttons = int(info.dwButtons)
+        generic_buttons = set()
+        for b_idx in range(16):
+            if buttons & (1 << b_idx):
+                generic_buttons.add(b_idx + 1)
         for b_idx, b_name in WINMM_BUTTON_MAP.items():
             if buttons & (1 << b_idx):
                 pressed.add(b_name)
         pressed.update(self._pov_to_dpad(info.dwPOV))
+        state.generic_buttons = tuple(sorted(generic_buttons))
         return state, tuple(sorted(pressed))
 
     def _build_winmm_state_from_basic(self, info):
@@ -431,9 +444,14 @@ class ControllerManager:
 
         pressed = set()
         buttons = int(info.wButtons)
+        generic_buttons = set()
+        for b_idx in range(16):
+            if buttons & (1 << b_idx):
+                generic_buttons.add(b_idx + 1)
         for b_idx, b_name in WINMM_BUTTON_MAP.items():
             if buttons & (1 << b_idx):
                 pressed.add(b_name)
+        state.generic_buttons = tuple(sorted(generic_buttons))
         return state, tuple(sorted(pressed))
 
     def _get_winmm_sources(self):
@@ -456,7 +474,7 @@ class ControllerManager:
 
                 if res_ex == 0:
                     state, pressed = self._build_winmm_state_from_ex(info_ex)
-                    out[key] = (state, pressed, None, "winmm")
+                    out[key] = (state, pressed, None, "winmm", f"Bluetooth/DirectInput #{jid}")
                     continue
 
                 # Fallback for devices/drivers that don't support joyGetPosEx reliably.
@@ -466,7 +484,7 @@ class ControllerManager:
                     continue
 
                 state, pressed = self._build_winmm_state_from_basic(info_basic)
-                out[key] = (state, pressed, None, "winmm")
+                out[key] = (state, pressed, None, "winmm", f"Bluetooth/DirectInput #{jid}")
             except Exception:
                 continue
 
@@ -480,7 +498,7 @@ class ControllerManager:
             if gp is None:
                 continue
             key = ("xinput", xcid)
-            sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput")
+            sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput", f"XInput Controller {xcid}")
 
         pygame_sources = self._get_pygame_sources()
         winmm_sources = self._get_winmm_sources()
@@ -509,6 +527,7 @@ class ControllerManager:
             self.latest[slot] = None
             self.pressed[slot] = tuple()
             self.slot_backend[slot] = None
+            self.slot_label[slot] = None
             self._slot_xinput[slot] = None
             if self.macro_engine is not None:
                 self.macro_engine.check_combo(slot, tuple())
@@ -535,11 +554,12 @@ class ControllerManager:
             key = self._slot_sources.get(slot)
             if key is None or key not in sources:
                 continue
-            gp, pressed_names, xinput_id, backend = sources[key]
+            gp, pressed_names, xinput_id, backend, label = sources[key]
             self.connected[slot] = True
             self.latest[slot] = gp
             self.pressed[slot] = pressed_names
             self.slot_backend[slot] = backend
+            self.slot_label[slot] = label
             self._slot_xinput[slot] = xinput_id
             if self.macro_engine is not None:
                 self.macro_engine.check_combo(slot, pressed_names)
@@ -612,6 +632,9 @@ class ControllerManager:
 
     def get_backend(self, controller_id):
         return self.slot_backend.get(controller_id)
+
+    def get_device_label(self, controller_id):
+        return self.slot_label.get(controller_id)
 
     def get_gamepad(self, controller_id):
         return self.latest.get(controller_id)

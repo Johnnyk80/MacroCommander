@@ -170,14 +170,14 @@ class ControllerMonitor(ttk.LabelFrame):
         body.pack(fill="both", expand=True, padx=8, pady=(4, 24))
         body.pack_propagate(False)
 
-        xinput = tk.Frame(body, bg=self.palette["bg"])
-        xinput.pack(fill="both", expand=True, padx=20, pady=16)
+        self.xinput_frame = tk.Frame(body, bg=self.palette["bg"])
+        self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
 
-        header = tk.Frame(xinput, bg=self.palette["bg"])
+        header = tk.Frame(self.xinput_frame, bg=self.palette["bg"])
         header.pack(fill="x")
         tk.Label(header, text="xinput", font=("Segoe UI", 34, "bold"), fg=self.palette["ink"], bg=self.palette["bg"]).pack(anchor="w")
 
-        metrics = tk.Frame(xinput, bg=self.palette["bg"])
+        metrics = tk.Frame(self.xinput_frame, bg=self.palette["bg"])
         metrics.pack(fill="x", pady=(10, 14))
         self.metric_values = {}
         metric_cols = [("INDEX", "index"), ("CONNECTED", "connected"), ("MAPPING", "mapping"), ("TIMESTAMP", "timestamp")]
@@ -189,7 +189,7 @@ class ControllerMonitor(ttk.LabelFrame):
             value.pack(anchor="w")
             self.metric_values[key] = value
 
-        button_grid = tk.Frame(xinput, bg=self.palette["bg"])
+        button_grid = tk.Frame(self.xinput_frame, bg=self.palette["bg"])
         button_grid.pack(fill="x", pady=(0, 12))
         self.button_labels = {}
         button_order = ["A", "B", "X", "Y", "LB", "RB", "Back", "Start", "LS", "RS", "DPad Up", "DPad Down", "DPad Left", "DPad Right"]
@@ -210,7 +210,7 @@ class ControllerMonitor(ttk.LabelFrame):
             lbl.pack(anchor="w")
             self.button_labels[name] = lbl
 
-        lower = tk.Frame(xinput, bg=self.palette["bg"])
+        lower = tk.Frame(self.xinput_frame, bg=self.palette["bg"])
         lower.pack(fill="both", expand=True)
 
         trig = tk.Frame(lower, bg=self.palette["bg"])
@@ -242,6 +242,61 @@ class ControllerMonitor(ttk.LabelFrame):
         self.left_dot = self.left_canvas.create_oval(75, 75, 85, 85, fill=self.palette["accent"], outline="")
         self.right_dot = self.right_canvas.create_oval(75, 75, 85, 85, fill=self.palette["accent"], outline="")
 
+        self.bluetooth_frame = tk.Frame(body, bg=self.palette["bg"])
+        self._build_bluetooth_layout(self.bluetooth_frame)
+
+    def _build_bluetooth_layout(self, parent):
+        header = tk.Frame(parent, bg=self.palette["bg"])
+        header.pack(fill="x", pady=(0, 8))
+        self.bt_title = tk.Label(header, text="Bluetooth / Generic Controller", font=("Segoe UI", 20, "bold"), fg=self.palette["ink"], bg=self.palette["bg"])
+        self.bt_title.pack(anchor="w")
+
+        axes = tk.LabelFrame(parent, text="Axes", bg=self.palette["bg"], fg=self.palette["ink"])
+        axes.pack(fill="x", pady=(0, 8))
+
+        axis_row = tk.Frame(axes, bg=self.palette["bg"])
+        axis_row.pack(fill="x", padx=8, pady=8)
+
+        self.bt_xy = tk.Canvas(axis_row, width=120, height=120, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
+        self.bt_xy.pack(side="left", padx=(0, 12))
+        self.bt_xy.create_line(60, 10, 60, 110, fill=self.palette["line"])
+        self.bt_xy.create_line(10, 60, 110, 60, fill=self.palette["line"])
+        self.bt_xy_dot = self.bt_xy.create_oval(56, 56, 64, 64, fill=self.palette["accent"], outline="")
+
+        bars = tk.Frame(axis_row, bg=self.palette["bg"])
+        bars.pack(side="left", fill="x", expand=True)
+        tk.Label(bars, text="Z Axis", bg=self.palette["bg"], fg=self.palette["muted"]).grid(row=0, column=0, sticky="w")
+        self.bt_z_canvas = tk.Canvas(bars, width=280, height=16, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
+        self.bt_z_canvas.grid(row=0, column=1, padx=8, pady=4, sticky="w")
+        self.bt_z_bar = self.bt_z_canvas.create_rectangle(0, 0, 0, 16, fill=self.palette["accent"], width=0)
+
+        tk.Label(bars, text="Z Rotation", bg=self.palette["bg"], fg=self.palette["muted"]).grid(row=1, column=0, sticky="w")
+        self.bt_r_canvas = tk.Canvas(bars, width=280, height=16, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
+        self.bt_r_canvas.grid(row=1, column=1, padx=8, pady=4, sticky="w")
+        self.bt_r_bar = self.bt_r_canvas.create_rectangle(0, 0, 0, 16, fill=self.palette["accent"], width=0)
+
+        lower = tk.Frame(parent, bg=self.palette["bg"])
+        lower.pack(fill="both", expand=True)
+
+        btn_box = tk.LabelFrame(lower, text="Buttons", bg=self.palette["bg"], fg=self.palette["ink"])
+        btn_box.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        self.bt_button_labels = {}
+        for i in range(16):
+            n = i + 1
+            row, col = divmod(i, 8)
+            c = tk.Canvas(btn_box, width=30, height=30, bg=self.palette["bg"], highlightthickness=0)
+            c.grid(row=row, column=col, padx=6, pady=8)
+            oval = c.create_oval(4, 4, 26, 26, fill="#7A0000", outline="#300")
+            text = c.create_text(15, 15, text=str(n), fill="white", font=("Segoe UI", 9, "bold"))
+            self.bt_button_labels[n] = (c, oval, text)
+
+        pov_box = tk.LabelFrame(lower, text="Point of View Hat", bg=self.palette["bg"], fg=self.palette["ink"])
+        pov_box.pack(side="left", fill="both", padx=(8, 0))
+        self.bt_pov = tk.Canvas(pov_box, width=130, height=130, bg=self.palette["panel"], highlightthickness=1, highlightbackground=self.palette["line"])
+        self.bt_pov.pack(padx=10, pady=10)
+        self.bt_pov.create_oval(15, 15, 115, 115, outline=self.palette["line"])
+        self.bt_pov_dot = self.bt_pov.create_oval(60, 60, 70, 70, fill=self.palette["accent"], outline="")
+
     def _set_metric(self, key, value):
         lbl = self.metric_values.get(key)
         if lbl is not None:
@@ -259,7 +314,8 @@ class ControllerMonitor(ttk.LabelFrame):
         except Exception:
             pct = 0.0
         pct = max(0.0, min(1.0, pct))
-        canvas.coords(bar, 0, 0, int(300 * pct), 16)
+        width = int(canvas.cget("width"))
+        canvas.coords(bar, 0, 0, int(width * pct), 16)
 
     def _set_stick(self, canvas, dot, x, y):
         nx = float(x) / STICK_MAX
@@ -269,11 +325,51 @@ class ControllerMonitor(ttk.LabelFrame):
         dy = center + (ny * radius)
         canvas.coords(dot, dx - 5, dy - 5, dx + 5, dy + 5)
 
+    def _set_generic_button(self, number, pressed):
+        item = self.bt_button_labels.get(number)
+        if not item:
+            return
+        c, oval, _ = item
+        c.itemconfig(oval, fill="#C50000" if pressed else "#7A0000")
+
+    def _set_pov(self, pressed_names):
+        x, y = 65, 65
+        step = 30
+        if "DPad Left" in pressed_names:
+            x -= step
+        if "DPad Right" in pressed_names:
+            x += step
+        if "DPad Up" in pressed_names:
+            y -= step
+        if "DPad Down" in pressed_names:
+            y += step
+        self.bt_pov.coords(self.bt_pov_dot, x - 5, y - 5, x + 5, y + 5)
+
+    def _set_xy_dot(self, x, y):
+        nx = float(x) / STICK_MAX
+        ny = -float(y) / STICK_MAX
+        cx, cy, radius = 60, 60, 45
+        dx = cx + (nx * radius)
+        dy = cy + (ny * radius)
+        self.bt_xy.coords(self.bt_xy_dot, dx - 4, dy - 4, dx + 4, dy + 4)
+
     def update_view(self):
         cid = self.selected_controller.get()
         connected = cid in self.cm.get_connected_ids()
+        backend = (self.cm.get_backend(cid) or "xinput").lower()
+        label = self.cm.get_device_label(cid) or ("XInput" if backend == "xinput" else backend.title())
+
         self._set_metric("index", str(cid))
-        self._set_metric("mapping", "standard")
+        self._set_metric("mapping", backend)
+
+        show_generic = backend != "xinput"
+        if show_generic:
+            self.bluetooth_frame.pack_forget()
+            self.xinput_frame.pack_forget()
+            self.bluetooth_frame.pack(fill="both", expand=True, padx=20, pady=16)
+        else:
+            self.bluetooth_frame.pack_forget()
+            self.xinput_frame.pack(fill="both", expand=True, padx=20, pady=16)
 
         if not connected:
             self.status_label.config(text=f"Status: Controller {cid} not connected")
@@ -285,14 +381,31 @@ class ControllerMonitor(ttk.LabelFrame):
             self._set_bar(self.rt_canvas, self.rt_bar, 0)
             self._set_stick(self.left_canvas, self.left_dot, 0, 0)
             self._set_stick(self.right_canvas, self.right_dot, 0, 0)
+            self._set_xy_dot(0, 0)
+            self._set_bar(self.bt_z_canvas, self.bt_z_bar, 0)
+            self._set_bar(self.bt_r_canvas, self.bt_r_bar, 0)
+            self._set_pov(set())
+            for i in range(1, 17):
+                self._set_generic_button(i, False)
             return
 
         gp = self.cm.get_gamepad(cid)
         pressed = set(self.cm.get_pressed_combo(cid))
 
-        self.status_label.config(text=f"Status: Controller {cid} connected")
+        self.status_label.config(text=f"Status: Controller {cid} connected ({label})")
         self._set_metric("connected", "Yes")
         self._set_metric("timestamp", f"{getattr(gp, 'dwPacketNumber', 0)}")
+
+        if show_generic:
+            self.bt_title.config(text=f"Bluetooth / Generic Controller - {label}")
+            self._set_xy_dot(getattr(gp, 'sThumbLX', 0), getattr(gp, 'sThumbLY', 0))
+            self._set_bar(self.bt_z_canvas, self.bt_z_bar, getattr(gp, 'bLeftTrigger', 0))
+            self._set_bar(self.bt_r_canvas, self.bt_r_bar, getattr(gp, 'bRightTrigger', 0))
+            self._set_pov(pressed)
+            generic = set(getattr(gp, 'generic_buttons', tuple()) or tuple())
+            for i in range(1, 17):
+                self._set_generic_button(i, i in generic)
+            return
 
         for name, lbl in self.button_labels.items():
             is_pressed = name in pressed
