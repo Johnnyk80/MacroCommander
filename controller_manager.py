@@ -210,6 +210,9 @@ class ControllerManager:
         self._pygame_ready = False
         self._pygame_failed = False
 
+        self._xinput_seen = False
+        self._xinput_promote_until = 0.0
+
         # Listen mode state
         self.listen_armed = False
         self.listen_callback = None
@@ -490,25 +493,71 @@ class ControllerManager:
 
         return out
 
+    def _source_has_activity(self, gp, pressed_names):
+        if pressed_names:
+            return True
+        buttons = getattr(gp, "generic_buttons", tuple()) or tuple()
+        if buttons:
+            return True
+        try:
+            axes = [
+                abs(int(getattr(gp, "sThumbLX", 0))),
+                abs(int(getattr(gp, "sThumbLY", 0))),
+                abs(int(getattr(gp, "sThumbRX", 0))),
+                abs(int(getattr(gp, "sThumbRY", 0))),
+                int(getattr(gp, "bLeftTrigger", 0)),
+                int(getattr(gp, "bRightTrigger", 0)),
+            ]
+        except Exception:
+            return False
+        # deadzone-ish thresholds to avoid noisy drift
+        return (
+            axes[0] > 2500
+            or axes[1] > 2500
+            or axes[2] > 2500
+            or axes[3] > 2500
+            or axes[4] > 20
+            or axes[5] > 20
+        )
+
     def _get_all_sources(self):
         sources = {}
+        xinput_sources = {}
 
         for xcid in range(self.max_controllers):
             gp = self._get_state(xcid)
             if gp is None:
                 continue
             key = ("xinput", xcid)
-            sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput", f"XInput Controller {xcid}")
+            xinput_sources[key] = (gp, self._buttons_to_names(gp.wButtons), xcid, "xinput", f"XInput Controller {xcid}")
+
+        sources.update(xinput_sources)
+
+        has_xinput = len(xinput_sources) > 0
+        now = time.time()
+        if has_xinput and not self._xinput_seen:
+            # When a controller switches from BT/DirectInput to XInput mode,
+            # stale generic endpoints can linger briefly. Prefer XInput during this window.
+            self._xinput_promote_until = now + 4.0
+        self._xinput_seen = has_xinput
 
         pygame_sources = self._get_pygame_sources()
         winmm_sources = self._get_winmm_sources()
-        sources.update(pygame_sources)
+
+        for key, value in pygame_sources.items():
+            gp, pressed_names, xinput_id, backend, label = value
+            if now < self._xinput_promote_until and has_xinput and not self._source_has_activity(gp, pressed_names):
+                continue
+            sources[key] = value
 
         # Add winmm only when we have free logical space to avoid XInput duplication noise.
         available_slots = max(0, self.max_controllers - len(sources))
         if available_slots > 0:
             for key, value in winmm_sources.items():
                 if key in sources:
+                    continue
+                gp, pressed_names, xinput_id, backend, label = value
+                if now < self._xinput_promote_until and has_xinput and not self._source_has_activity(gp, pressed_names):
                     continue
                 sources[key] = value
                 if len(sources) >= self.max_controllers:
