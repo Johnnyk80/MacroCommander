@@ -8,7 +8,7 @@ This repo now includes CI + repository metadata to support strict branch protect
   - runs Python syntax checks
   - optionally runs unit tests from `tests/` if present
 - **CODEOWNERS** at `.github/CODEOWNERS`
-  - set the placeholder owner to your real GitHub username/team
+  - owner is set to `@Johnnyk80` (update if ownership changes)
 - **PR template** at `.github/pull_request_template.md`
 
 ## One-time GitHub settings to apply
