@@ -14,3 +14,18 @@ env/
 
 # Logs
 *.log
+
+
+# Local environment files / secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
