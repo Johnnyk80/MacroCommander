@@ -139,17 +139,30 @@ This creates:
 
 If those folders are missing in the packaged app, plugin actions and defaults may not load.
 
-### 4) Plugin dependencies
+### 4) Plugin dependencies (self-contained plugins)
 
-Each plugin can have its own Python/import requirements. Those are not "magic"; they must be installed at build time so PyInstaller can bundle them.
+Plugins can now ship their own dependency files next to the plugin, so you don't need to keep editing `main.py` for per-plugin imports.
 
-- If a plugin only uses stdlib + already installed packages, nothing extra is needed.
-- If a plugin imports extra packages, install them and (if needed) add `--hidden-import` entries.
+Supported layouts:
+
+- Shared for all plugins:
+  - `plugins/_shared_deps/`
+- For a file plugin `plugins/my_plugin.py`:
+  - `plugins/my_plugin_deps/`
+  - `plugins/my_plugin_libs/`
+  - `plugins/my_plugin/deps/`, `plugins/my_plugin/libs/`, `plugins/my_plugin/vendor/`, `plugins/my_plugin/site-packages/`
+- Package plugin:
+  - `plugins/my_plugin/__init__.py`
+  - Optional deps inside `plugins/my_plugin/deps|libs|vendor|site-packages/`
+
+At startup, `plugin_loader.py` adds these directories to `sys.path` before importing each plugin.
+
+> Note: if a plugin depends on compiled wheels/extensions, ship the correct Windows/Python-compatible binaries in those plugin dependency folders.
 
 ### 5) How files complement the app
 
 - `main.py`: startup/orchestration, built-in action registration, loads plugins, creates UI/tray, starts controller polling.
-- `plugin_loader.py`: dynamically loads `plugins/*.py` and calls each plugin's `register(registry)`.
+- `plugin_loader.py`: dynamically loads file and package plugins, adds plugin-local dependency folders to `sys.path`, and calls each plugin's `register(registry)`.
 - `macro_engine.py` + `execution_engine.py`: evaluate triggers and execute macro steps.
 - `ui.py`: Tkinter editor/monitor.
 - `tray.py`: system tray behavior (native win32 when available, fallback to `pystray`).
