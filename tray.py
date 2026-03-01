@@ -138,16 +138,25 @@ class TrayManager:
                 self._running = True
                 self._log("native: thread started")
 
-                # Write a tiny cyan .ico
+                # Write a tray icon with a stylized "M" mark.
                 ico_path = os.path.abspath("tray_icon.ico")
                 try:
                     from PIL import Image, ImageDraw
-                    img = Image.new("RGBA", (64, 64), (0, 200, 255, 255))
+
+                    img = Image.new("RGBA", (64, 64), (27, 30, 38, 255))
                     d = ImageDraw.Draw(img)
+
                     try:
-                        d.rounded_rectangle((8, 8, 56, 56), radius=10, outline=(255, 255, 255, 255), width=4)
+                        d.rounded_rectangle((6, 6, 58, 58), radius=12, outline=(0, 200, 255, 255), width=3)
                     except Exception:
-                        d.rectangle((8, 8, 56, 56), outline=(255, 255, 255, 255), width=4)
+                        d.rectangle((6, 6, 58, 58), outline=(0, 200, 255, 255), width=3)
+
+                    # Draw a bold "M" that remains legible at smaller tray sizes.
+                    d.line((16, 46, 16, 17), fill=(255, 255, 255, 255), width=7)
+                    d.line((16, 17, 32, 36), fill=(255, 255, 255, 255), width=7)
+                    d.line((32, 36, 48, 17), fill=(255, 255, 255, 255), width=7)
+                    d.line((48, 17, 48, 46), fill=(255, 255, 255, 255), width=7)
+
                     img.save(ico_path, format="ICO")
                     self._log(f"native: icon written {ico_path}")
                 except Exception as e:
