@@ -1,4 +1,5 @@
 import os
+import platform
 import sys
 import tkinter as tk
 
@@ -16,6 +17,11 @@ from startup_manager import StartupManager
 
 
 _SINGLE_INSTANCE_LOCK = None
+
+# Keep this stdlib import at module scope so PyInstaller includes it when building
+# from main.py. Runtime-loaded plugins (loaded from files in plugins/) may import
+# platform even though those plugins are not part of static import analysis.
+_ = platform.system
 
 
 def _acquire_single_instance_lock(app_id="MacroCommander"):
