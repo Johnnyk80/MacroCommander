@@ -1,16 +1,16 @@
-name: CI
+name: Lint and sanity checks
 
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  quality:
-    name: Lint and sanity checks
+  lint-and-tests:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,20 +20,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies (if present)
-        run: |
-          if [ -f requirements.txt ]; then
-            python -m pip install --upgrade pip
-            pip install -r requirements.txt
-          fi
-
-      - name: Validate Python syntax
-        run: python -m compileall -q .
+      - name: Syntax check
+        run: python -m compileall .
 
       - name: Run unit tests (if present)
         run: |
           if [ -d tests ]; then
             python -m unittest discover -s tests -p 'test*.py'
           else
-            echo "No tests directory found; skipping unit tests."
+            echo "No tests/ directory found; skipping tests."
           fi
