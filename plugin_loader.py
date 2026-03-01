@@ -19,6 +19,12 @@ def load_plugins(registry, plugins_dir: str, logger=None):
             logger.log(f"Plugins: directory not found: {plugins_dir}")
         return
 
+    if logger:
+        logger.log(f"Plugins: scanning directory: {plugins_dir}")
+
+    loaded_count = 0
+    failed_count = 0
+
     for filename in sorted(os.listdir(plugins_dir)):
         if not filename.lower().endswith(".py"):
             continue
@@ -27,6 +33,9 @@ def load_plugins(registry, plugins_dir: str, logger=None):
 
         path = os.path.join(plugins_dir, filename)
         mod_name = f"cmr_plugin_{os.path.splitext(filename)[0]}"
+
+        if logger:
+            logger.log(f"Plugins: loading {filename}")
 
         try:
             spec = importlib.util.spec_from_file_location(mod_name, path)
@@ -43,13 +52,34 @@ def load_plugins(registry, plugins_dir: str, logger=None):
                 continue
 
             module.register(registry)
+            loaded_count += 1
 
             if logger:
                 logger.log(f"Plugins: loaded {filename}")
 
+        except ModuleNotFoundError as e:
+            failed_count += 1
+            if logger:
+                missing_dep = getattr(e, "name", None) or str(e)
+                logger.log(
+                    f"Plugins: dependency error in {filename}: missing module '{missing_dep}'"
+                )
+                logger.log(
+                    "Plugins: install/update plugin dependencies, then restart MacroCommander"
+                )
+                tb = traceback.format_exc()
+                for line in tb.splitlines():
+                    logger.log(line)
+
         except Exception as e:
+            failed_count += 1
             if logger:
                 logger.log(f"Plugins: ERROR loading {filename}: {type(e).__name__}: {e}")
                 tb = traceback.format_exc()
                 for line in tb.splitlines():
                     logger.log(line)
+
+    if logger:
+        logger.log(
+            f"Plugins: scan complete (loaded={loaded_count}, failed={failed_count})"
+        )
