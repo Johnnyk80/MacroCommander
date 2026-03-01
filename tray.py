@@ -138,30 +138,7 @@ class TrayManager:
                 self._running = True
                 self._log("native: thread started")
 
-                # Write a tray icon with a stylized "M" mark.
-                ico_path = os.path.abspath("tray_icon.ico")
-                try:
-                    from PIL import Image, ImageDraw
-
-                    img = Image.new("RGBA", (64, 64), (27, 30, 38, 255))
-                    d = ImageDraw.Draw(img)
-
-                    try:
-                        d.rounded_rectangle((6, 6, 58, 58), radius=12, outline=(0, 200, 255, 255), width=3)
-                    except Exception:
-                        d.rectangle((6, 6, 58, 58), outline=(0, 200, 255, 255), width=3)
-
-                    # Draw a bold "M" that remains legible at smaller tray sizes.
-                    d.line((16, 46, 16, 17), fill=(255, 255, 255, 255), width=7)
-                    d.line((16, 17, 32, 36), fill=(255, 255, 255, 255), width=7)
-                    d.line((32, 36, 48, 17), fill=(255, 255, 255, 255), width=7)
-                    d.line((48, 17, 48, 46), fill=(255, 255, 255, 255), width=7)
-
-                    img.save(ico_path, format="ICO")
-                    self._log(f"native: icon written {ico_path}")
-                except Exception as e:
-                    self._log(f"native: icon write failed: {type(e).__name__}: {e}")
-                    ico_path = None
+                ico_path = self._resolve_native_icon_path()
 
                 class_name = "ControllerCommanderTrayWindow"
                 WM_TRAY = win32con.WM_USER + 20
@@ -299,6 +276,45 @@ class TrayManager:
         ok = self._ready.wait(timeout=max(0.2, float(wait_s)))
         self._log(f"native: ready wait done ok={ok}")
         return ok
+
+    def _resolve_native_icon_path(self):
+        if self.icon_path:
+            explicit_path = os.path.abspath(self.icon_path)
+            if os.path.exists(explicit_path):
+                self._log(f"native: using configured icon {explicit_path}")
+                return explicit_path
+
+        icon_dir = os.path.dirname(os.path.abspath(self.debug_log_path)) or os.path.expanduser("~")
+        try:
+            os.makedirs(icon_dir, exist_ok=True)
+        except Exception as e:
+            self._log(f"native: unable to create icon dir {icon_dir}: {type(e).__name__}: {e}")
+            icon_dir = os.path.expanduser("~")
+
+        ico_path = os.path.join(icon_dir, "tray_icon.ico")
+        try:
+            from PIL import Image, ImageDraw
+
+            img = Image.new("RGBA", (64, 64), (27, 30, 38, 255))
+            d = ImageDraw.Draw(img)
+
+            try:
+                d.rounded_rectangle((6, 6, 58, 58), radius=12, outline=(0, 200, 255, 255), width=3)
+            except Exception:
+                d.rectangle((6, 6, 58, 58), outline=(0, 200, 255, 255), width=3)
+
+            # Draw a bold "M" that remains legible at smaller tray sizes.
+            d.line((16, 46, 16, 17), fill=(255, 255, 255, 255), width=7)
+            d.line((16, 17, 32, 36), fill=(255, 255, 255, 255), width=7)
+            d.line((32, 36, 48, 17), fill=(255, 255, 255, 255), width=7)
+            d.line((48, 17, 48, 46), fill=(255, 255, 255, 255), width=7)
+
+            img.save(ico_path, format="ICO")
+            self._log(f"native: icon written {ico_path}")
+            return ico_path
+        except Exception as e:
+            self._log(f"native: icon write failed: {type(e).__name__}: {e}")
+            return None
 
     # -------- pystray fallback ----------
     def _start_pystray(self, wait_s: float) -> bool:
