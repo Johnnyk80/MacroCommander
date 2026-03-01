@@ -1,11 +1,15 @@
 ## Summary
-- What changed?
-- Why was this change needed?
+- Describe what changed and why.
 
 ## Validation
-- [ ] Local checks completed
-- [ ] CI checks pass
+- [ ] Local checks run (include commands/output)
+- [ ] CI passing
 
-## Risk & Rollback
-- Any notable risks?
-- How to roll back if needed?
+## Security review
+- [ ] No secrets or credentials added
+- [ ] New dependencies reviewed
+- [ ] Privileged or startup behavior changes documented
+
+## Checklist
+- [ ] Documentation updated (if needed)
+- [ ] Backward compatibility considered
