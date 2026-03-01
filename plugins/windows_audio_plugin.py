@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import subprocess
 from typing import Any, Dict, List
 
@@ -316,7 +315,7 @@ def _to_choice_options(devices: List[Dict[str, str]]) -> List[Dict[str, str]]:
 
 
 def register(registry):
-    is_windows = platform.system().lower() == "windows"
+    is_windows = os.name == "nt"
 
     devices: List[Dict[str, str]] = []
     description = (
