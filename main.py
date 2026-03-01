@@ -15,6 +15,90 @@ from tray import TrayManager
 from startup_manager import StartupManager
 
 
+_SINGLE_INSTANCE_LOCK = None
+
+
+def _acquire_single_instance_lock(app_id="MacroCommander"):
+    """Return (ok, reason) and hold a process-wide lock when ok=True."""
+    global _SINGLE_INSTANCE_LOCK
+
+    if _SINGLE_INSTANCE_LOCK is not None:
+        return True, "already-held"
+
+    if os.name == "nt":
+        try:
+            import ctypes
+            import ctypes.wintypes
+
+            kernel32 = ctypes.windll.kernel32
+            # ERROR_ALREADY_EXISTS = 183
+            ERROR_ALREADY_EXISTS = 183
+            mutex_name = f"Global\\{app_id}"
+
+            handle = kernel32.CreateMutexW(None, False, ctypes.wintypes.LPCWSTR(mutex_name))
+            if not handle:
+                return False, "CreateMutexW-failed"
+
+            last_error = kernel32.GetLastError()
+            if last_error == ERROR_ALREADY_EXISTS:
+                kernel32.CloseHandle(handle)
+                return False, "already-running"
+
+            _SINGLE_INSTANCE_LOCK = handle
+            return True, "ok"
+        except Exception:
+            # Fall through to file-lock fallback below.
+            pass
+
+    lock_path = os.path.join(_ensure_dir(os.path.expanduser("~")), f".{app_id}.lock")
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        os.write(fd, str(os.getpid()).encode("utf-8"))
+        _SINGLE_INSTANCE_LOCK = (fd, lock_path)
+        return True, "ok"
+    except FileExistsError:
+        return False, "already-running"
+    except Exception:
+        return True, "lock-unavailable"
+
+
+def _release_single_instance_lock():
+    global _SINGLE_INSTANCE_LOCK
+    lock = _SINGLE_INSTANCE_LOCK
+    _SINGLE_INSTANCE_LOCK = None
+    if lock is None:
+        return
+
+    if os.name == "nt" and isinstance(lock, int):
+        try:
+            import ctypes
+
+            ctypes.windll.kernel32.CloseHandle(lock)
+        except Exception:
+            pass
+        return
+
+    if isinstance(lock, tuple) and len(lock) == 2:
+        fd, lock_path = lock
+        try:
+            os.close(fd)
+        except Exception:
+            pass
+        try:
+            os.unlink(lock_path)
+        except Exception:
+            pass
+
+
+def _notify_already_running(root):
+    try:
+        from tkinter import messagebox
+
+        messagebox.showinfo("Macro Commander", "Macro Commander is already running.")
+    except Exception:
+        pass
+
+
 def register_builtin_actions(registry: ActionRegistry):
     import subprocess
     import webbrowser
@@ -177,6 +261,35 @@ def _ensure_dir(path):
     return path
 
 
+def _get_runtime_dirs():
+    """Return directories for writable data and bundled resources."""
+    source_dir = os.path.dirname(os.path.abspath(__file__))
+    exe_dir = os.path.dirname(os.path.abspath(sys.executable)) if getattr(sys, "frozen", False) else source_dir
+    bundle_dir = getattr(sys, "_MEIPASS", source_dir)
+    return {
+        "source_dir": source_dir,
+        "exe_dir": exe_dir,
+        "bundle_dir": bundle_dir,
+    }
+
+
+def _iter_plugin_dirs(runtime_dirs):
+    """Yield unique plugin directories in priority order."""
+    candidates = [
+        os.path.join(runtime_dirs["exe_dir"], "plugins"),
+        os.path.join(runtime_dirs["bundle_dir"], "plugins"),
+        os.path.join(runtime_dirs["source_dir"], "plugins"),
+    ]
+
+    seen = set()
+    for candidate in candidates:
+        normalized = os.path.normcase(os.path.normpath(candidate))
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        yield candidate
+
+
 def _load_macros(profile_manager, logger):
     for name in ("load_profile_or_default", "load_or_default", "load", "load_profile", "load_default_profile", "get_macros"):
         fn = getattr(profile_manager, name, None)
@@ -231,10 +344,19 @@ def _save_startup_options(profile_manager, options):
 
 
 def main():
+    ok, _ = _acquire_single_instance_lock(app_id="MacroCommander")
+    if not ok:
+        root = tk.Tk()
+        root.withdraw()
+        _notify_already_running(root)
+        root.destroy()
+        return
+
     root = tk.Tk()
     logger = AppLogger()
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    runtime_dirs = _get_runtime_dirs()
+    base_dir = runtime_dirs["exe_dir"]
 
     profile_dir = _ensure_dir(os.path.join(base_dir, "profiles"))
     profile_manager = ProfileManager(profile_dir)
@@ -248,7 +370,8 @@ def main():
     if should_start_minimized:
         root.withdraw()
 
-    startup_manager = StartupManager(app_name="ControllerMacroRunner", script_path=__file__)
+    startup_target = sys.executable if getattr(sys, "frozen", False) else __file__
+    startup_manager = StartupManager(app_name="ControllerMacroRunner", script_path=startup_target)
 
     startup_options["start_with_windows"] = bool(startup_manager.is_enabled())
     _save_startup_options(profile_manager, startup_options)
@@ -256,8 +379,15 @@ def main():
     registry = ActionRegistry()
     register_builtin_actions(registry)
 
-    plugins_dir = os.path.join(base_dir, "plugins")
-    load_plugins(registry, plugins_dir=plugins_dir, logger=logger)
+    loaded_plugin_dir = None
+    for plugins_dir in _iter_plugin_dirs(runtime_dirs):
+        if os.path.isdir(plugins_dir):
+            load_plugins(registry, plugins_dir=plugins_dir, logger=logger)
+            loaded_plugin_dir = plugins_dir
+            break
+
+    if logger and loaded_plugin_dir is None:
+        logger.log("Plugins: no plugin directory found in runtime paths")
 
     macro_engine = MacroEngine(
         profile_manager=profile_manager,
@@ -339,7 +469,10 @@ def main():
 
     root.after(200, initialize_tray)
 
-    root.mainloop()
+    try:
+        root.mainloop()
+    finally:
+        _release_single_instance_lock()
 
 
 if __name__ == "__main__":
