@@ -278,6 +278,21 @@ def _run_bridge(mode: str, extra_env: Dict[str, str] | None = None) -> str:
     env = dict(extra_env or {})
     env["AUDIO_PLUGIN_MODE"] = mode
 
+    run_kwargs = {
+        "capture_output": True,
+        "text": True,
+        "env": {**os.environ, **env},
+        "check": False,
+    }
+
+    # Hide the transient PowerShell console window when launched from GUI app.
+    if os.name == "nt":
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = 0
+        run_kwargs["startupinfo"] = startupinfo
+        run_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
     proc = subprocess.run(
         [
             "powershell",
@@ -287,10 +302,7 @@ def _run_bridge(mode: str, extra_env: Dict[str, str] | None = None) -> str:
             "-Command",
             AUDIO_BRIDGE_PS,
         ],
-        capture_output=True,
-        text=True,
-        env={**os.environ, **env},
-        check=False,
+        **run_kwargs,
     )
 
     if proc.returncode != 0:
