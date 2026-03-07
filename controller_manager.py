@@ -237,8 +237,11 @@ class ControllerManager:
                 pressed_names = self._buttons_to_names(gp.wButtons)
                 if pressed_names != self.pressed.get(logical_id, tuple()):
                     self.pressed[logical_id] = pressed_names
-                    if self.macro_engine is not None:
-                        self.macro_engine.check_combo(logical_id, pressed_names)
+
+                # Always tick combo state so hold timers can complete even when
+                # the button set remains unchanged for multiple polling frames.
+                if self.macro_engine is not None:
+                    self.macro_engine.check_combo(logical_id, pressed_names)
 
             if self.listen_armed:
                 self._listen_tick()

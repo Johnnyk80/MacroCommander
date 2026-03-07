@@ -511,6 +511,36 @@ class MacroPanel(ttk.LabelFrame):
         self.tree.bind("<Button-3>", self._on_right_click)
         self.refresh()
 
+    def _describe_run_step(self, step):
+        aid = str(step.get("action_id", "")).strip()
+        params = step.get("params", {})
+        if not isinstance(params, dict):
+            params = {}
+
+        if aid == "file.exe":
+            path = str(params.get("path", "")).strip()
+            return f"Run EXE: {path}" if path else "Run EXE"
+        if aid == "file.bat":
+            path = str(params.get("path", "")).strip()
+            return f"Run BAT/CMD: {path}" if path else "Run BAT/CMD"
+        if aid == "file.py":
+            path = str(params.get("path", "")).strip()
+            return f"Run PY: {path}" if path else "Run PY"
+        if aid == "file.ps1":
+            path = str(params.get("path", "")).strip()
+            return f"Run PS1: {path}" if path else "Run PS1"
+        if aid == "open.url":
+            url = str(params.get("url", "")).strip()
+            return f"Open URL: {url}" if url else "Open URL"
+
+        action_name = self.registry.get_name(aid)
+        return action_name if action_name else str(aid)
+
+    def _describe_step(self, step):
+        if str(step.get("kind", "")).lower() == "wait":
+            return f"Wait {float(step.get('seconds', 0.0)):g}s"
+        return self._describe_run_step(step)
+
     def refresh(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -529,13 +559,7 @@ class MacroPanel(ttk.LabelFrame):
             if not isinstance(steps, list):
                 steps = []
 
-            parts = []
-            for s in steps:
-                if str(s.get("kind", "")).lower() == "wait":
-                    parts.append(f"Wait {float(s.get('seconds', 0.0)):g}s")
-                else:
-                    aid = s.get("action_id", "")
-                    parts.append(self.registry.get_name(aid))
+            parts = [self._describe_step(s) for s in steps]
             steps_summary = "  →  ".join(parts) if parts else "(no steps)"
 
             mid = m.get("id")
@@ -1063,8 +1087,7 @@ class MacroPanel(ttk.LabelFrame):
                 if kind == "wait":
                     steps_tree.insert("", "end", iid=str(i), values=("WAIT", f"{float(s.get('seconds', 0.0)):g} seconds"))
                 else:
-                    aid = s.get("action_id", "")
-                    steps_tree.insert("", "end", iid=str(i), values=("RUN", self.registry.get_name(aid)))
+                    steps_tree.insert("", "end", iid=str(i), values=("RUN", self._describe_run_step(s)))
 
         def get_sel_index():
             sel = steps_tree.selection()
